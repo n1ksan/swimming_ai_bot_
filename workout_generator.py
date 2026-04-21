@@ -370,32 +370,18 @@ def generate_workout(user_data: dict, history: list = None) -> tuple[str, str]:
         {"role": "user", "content": prompt},
     ]
 
-    max_attempts = 2
-    workout_text = ""
-    explanation = ""
-
-    for attempt in range(1, max_attempts + 1):
-        response = _get_client().chat.completions.create(
-            model="gpt-5.4-mini-2026-03-17",
-            max_completion_tokens=2048,
-            temperature=0.7,
-            messages=messages,
-        )
-        workout_text = response.choices[0].message.content
-
-        valid, explanation = validate_workout(workout_text, user_data, history or [])
-        if valid:
-            return workout_text, explanation
-
-        logging.warning(
-            "Валидация тренировки не прошла (попытка %d/%d). Перегенерация.",
-            attempt, max_attempts,
-        )
-
-    logging.error(
-        "Тренировка не прошла валидацию после %d попыток. Возвращаем последний вариант как есть.",
-        max_attempts,
+    response = _get_client().chat.completions.create(
+        model="gpt-5.4-mini-2026-03-17",
+        max_completion_tokens=2048,
+        temperature=0.7,
+        messages=messages,
     )
+    workout_text = response.choices[0].message.content
+
+    valid, explanation = validate_workout(workout_text, user_data, history or [])
+    if not valid:
+        logging.warning("Валидация тренировки не прошла, отправляем как есть.")
+
     return workout_text, explanation
 
 

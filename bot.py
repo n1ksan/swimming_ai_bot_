@@ -467,10 +467,10 @@ async def injuries_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 async def post_workout_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    await query.answer()
     user_id = query.from_user.id
 
     if query.data == "new_workout":
+        await query.answer()
         await query.edit_message_text(
             "⚙️ *Генерирую новую тренировку...* 🏊",
             parse_mode="Markdown",
@@ -480,11 +480,13 @@ async def post_workout_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     elif query.data == "save_workout":
         workout_text = context.user_data.get("last_workout_text", "")
         if workout_text:
-            await context.bot.send_message(chat_id=user_id, text=workout_text)
+            await query.answer("📤 Тренировка отправлена в чат!", show_alert=True)
+            await _send_html_text(query.message, _workout_to_html(workout_text))
         else:
-            await query.answer("Тренировка не найдена", show_alert=True)
+            await query.answer("Тренировка не найдена. Сгенерируй новую.", show_alert=True)
 
     elif query.data == "restart":
+        await query.answer()
         await query.edit_message_text(
             "Напиши /start чтобы изменить профиль и получить новую тренировку."
         )
