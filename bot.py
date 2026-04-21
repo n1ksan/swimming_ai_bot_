@@ -34,6 +34,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ── Состояния диалогов ─────────────────────────────────────────────────────
+INTRO = 10
 PROFILE_CHOICE, LEVEL, GOAL, POOL, DURATION, SESSIONS, STROKES, INJURIES = range(8)
 LOG_EFFORT, LOG_COMPLETION, LOG_COMMENT = range(3)
 PACE_INPUT = 0
@@ -159,11 +160,12 @@ async def _generate_and_send(
         await update.effective_message.reply_text("⏳ Тренировка уже генерируется, подожди немного...")
         return
 
+
     context.user_data["is_generating"] = True
     try:
         history = get_workout_history(user_id, limit=20)
         try:
-            workout_text = generate_workout(context.user_data, history)
+            workout_text, explanation = generate_workout(context.user_data, history)
         except Exception as e:
             logger.error(f"Ошибка генерации для пользователя {user_id}: {e}")
             await update.effective_message.reply_text(
@@ -183,6 +185,11 @@ async def _generate_and_send(
             [InlineKeyboardButton("📋 Изменить профиль", callback_data="restart")],
         ]
         await _send_html_text(update.effective_message, _workout_to_html(workout_text))
+        if explanation:
+            await update.effective_message.reply_text(
+                f"💭 *Почему именно эта тренировка:*\n{explanation}",
+                parse_mode="Markdown",
+            )
         await update.effective_message.reply_text(
             "Как прошла тренировка?",
             reply_markup=InlineKeyboardMarkup(keyboard),
@@ -238,14 +245,31 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def _start_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
+    return await _show_intro(update, context)
+
+
+async def _show_intro(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    keyboard = [[InlineKeyboardButton("▶️ Начать", callback_data="intro_start")]]
+    await update.effective_message.reply_text(
+        "🏊 *ПЕРСОНАЛЬНЫЙ ТРЕНЕР ПО ПЛАВАНИЮ*\n\n"
+        "Составляю тренировки на основе твоего уровня, цели и истории. "
+        "Каждая тренировка адаптируется — чем больше тренируешься, тем точнее план.\n\n"
+        "Займёт 1 минуту — отвечай на вопросы и сразу получишь тренировку.",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown",
+    )
+    return INTRO
+
+
+async def _intro_start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
     keyboard = [
         [InlineKeyboardButton("🌱 Новичок", callback_data="beginner")],
         [InlineKeyboardButton("🏊 Средний уровень", callback_data="intermediate")],
         [InlineKeyboardButton("🏆 Продвинутый", callback_data="advanced")],
     ]
-    await update.effective_message.reply_text(
-        "👋 Привет! Я — тренер по плаванию на основе искусственного интеллекта.\n\n"
-        "Буду составлять персональные тренировки и строить прогрессию на основе истории.\n\n"
+    await query.edit_message_text(
         "🏊 *Какой у тебя уровень плавания?*",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown",
@@ -655,17 +679,36 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     trend_text = f" ({stats['effort_trend']})" if stats["effort_trend"] else ""
 
+    cur = stats["distance_30d"]
+    prev = stats["prev_distance_30d"]
+    if prev > 0:
+        diff = round((cur - prev) / prev * 100)
+        if diff > 0:
+            volume_trend = f"📈 Объём вырос на {diff}%"
+        elif diff < 0:
+            volume_trend = f"📉 Объём снизился на {abs(diff)}%"
+        else:
+            volume_trend = "➡️ Объём стабилен"
+    elif cur > 0:
+        volume_trend = "📈 Объём вырос на 100%"
+    else:
+        volume_trend = "➡️ Объём стабилен"
+
+    partial_line = f"• Частично выполнено: {stats['partial_count']}\n" if stats["partial_count"] else ""
+
     text = (
         f"📈 *ТВОЙ ПРОГРЕСС*\n\n"
         f"*За всё время:*\n"
         f"• Тренировок выполнено: {stats['total_workouts']}\n"
+        f"{partial_line}"
         f"• Общий объём: {stats['total_distance']} м "
         f"({stats['total_distance'] // 1000} км)\n"
         f"• Средняя нагрузка: {stats['avg_effort_all']}/10\n\n"
         f"*За последние 30 дней:*\n"
         f"• Тренировок: {stats['workouts_30d']}\n"
         f"• Объём: {stats['distance_30d']} м\n"
-        f"• Средняя нагрузка: {stats['avg_effort_30d']}/10{trend_text}\n\n"
+        f"• Средняя нагрузка: {stats['avg_effort_30d']}/10{trend_text}\n"
+        f"• {volume_trend}\n\n"
         f"*Рекорды:*\n"
         f"• Максимальный объём: {stats['best_distance']} м\n"
         f"• Серия без пропусков: {stats['streak']} дн.\n\n"
@@ -853,12 +896,24 @@ async def pace_cancel_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 # ── /reminders ─────────────────────────────────────────────────────────────
 
+_MONTHS_RU = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
+
+
 async def _show_reminders_menu(msg, user_id: int, edit: bool = False) -> None:
     profile = get_user_profile(user_id)
     enabled = profile.get("reminders_enabled", 0) if profile else 0
 
     toggle_text = "❌ Выключить напоминания" if enabled else "✅ Включить напоминания"
     status = "✅ Включены" if enabled else "❌ Выключены"
+
+    last_sent_line = ""
+    last_sent_raw = profile.get("last_reminder_sent") if profile else None
+    if last_sent_raw:
+        try:
+            dt = datetime.fromisoformat(last_sent_raw)
+            last_sent_line = f"\nПоследнее: {dt.day} {_MONTHS_RU[dt.month - 1]} в {dt.strftime('%H:%M')}"
+        except ValueError:
+            pass
 
     keyboard = [
         [InlineKeyboardButton(toggle_text, callback_data="reminder_toggle")],
@@ -868,6 +923,7 @@ async def _show_reminders_menu(msg, user_id: int, edit: bool = False) -> None:
         f"🔔 *Напоминания о тренировках*\n\n"
         f"Статус: {status}\n"
         f"Время: 9:00 утра каждый день"
+        f"{last_sent_line}"
     )
     markup = InlineKeyboardMarkup(keyboard)
     if edit:
@@ -959,6 +1015,9 @@ def build_application(token: str) -> Application:
     setup_conv = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
+            INTRO: [
+                CallbackQueryHandler(_intro_start_handler, pattern="^intro_start$")
+            ],
             PROFILE_CHOICE: [
                 CallbackQueryHandler(
                     profile_choice_handler,

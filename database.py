@@ -61,6 +61,7 @@ def _migrate_db():
         ("reminder_days", "TEXT DEFAULT '[]'"),
         ("reminders_enabled", "INTEGER DEFAULT 0"),
         ("created_at", "TEXT"),
+        ("last_reminder_sent", "TEXT"),
     ]:
         _add_column(c, "users", col, col_type)
 
@@ -111,7 +112,7 @@ def get_user_profile(user_id: int):
     c = conn.cursor()
     c.execute(
         """SELECT level, goal, pool_length, duration, sessions_per_week, strokes, injuries,
-                  experience, best_100m_time, reminder_days, reminders_enabled
+                  experience, best_100m_time, reminder_days, reminders_enabled, last_reminder_sent
            FROM users WHERE user_id = ?""",
         (user_id,),
     )
@@ -131,7 +132,19 @@ def get_user_profile(user_id: int):
         "best_100m_time": row[8],
         "reminder_days": row[9] or "[]",
         "reminders_enabled": row[10] or 0,
+        "last_reminder_sent": row[11],
     }
+
+
+def update_reminder_sent(user_id: int) -> None:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        "UPDATE users SET last_reminder_sent = ? WHERE user_id = ?",
+        (datetime.now().isoformat(), user_id),
+    )
+    conn.commit()
+    conn.close()
 
 
 def update_user_field(user_id: int, field: str, value) -> None:
@@ -246,6 +259,20 @@ def get_stats(user_id: int) -> dict:
     distance_30d = int(row30[1] or 0)
     avg_effort_30d = round(row30[2] or 0, 1)
 
+    sixty_ago = (datetime.now() - timedelta(days=60)).strftime("%Y-%m-%d")
+    c.execute(
+        "SELECT SUM(distance_meters) FROM workouts "
+        "WHERE user_id = ? AND completed = 1 AND date(created_at) >= ? AND date(created_at) < ?",
+        (user_id, sixty_ago, thirty_ago),
+    )
+    prev_distance_30d = int(c.fetchone()[0] or 0)
+
+    c.execute(
+        "SELECT COUNT(*) FROM workouts WHERE user_id = ? AND completed = 1 AND completion_rate = 'partial'",
+        (user_id,),
+    )
+    partial_count = c.fetchone()[0] or 0
+
     c.execute(
         "SELECT MAX(distance_meters) FROM workouts WHERE user_id = ? AND completed = 1",
         (user_id,),
@@ -298,6 +325,8 @@ def get_stats(user_id: int) -> dict:
         "workouts_30d": workouts_30d,
         "distance_30d": distance_30d,
         "avg_effort_30d": avg_effort_30d,
+        "prev_distance_30d": prev_distance_30d,
+        "partial_count": partial_count,
         "best_distance": best_distance,
         "streak": streak,
         "effort_trend": effort_trend,

@@ -1,3 +1,5 @@
+import json
+import logging
 import re
 from datetime import datetime
 from openai import OpenAI
@@ -260,7 +262,58 @@ def _build_history_context(history: list) -> str:
     return "\n".join(lines)
 
 
-def generate_workout(user_data: dict, history: list = None) -> str:
+VALIDATOR_PROMPT = """Ты — строгий методист по плаванию. Проверь тренировку по 4 критериям:
+1. Объём соответствует уровню пловца (новичок ≤800м, средний ≤2500м, продвинутый без ограничений)
+2. Нет упражнений, затрагивающих зоны с травмами пользователя
+3. Объём не вырос более чем на 10% от предыдущей тренировки (если история есть)
+4. Есть секция техники
+
+Ответь строго в формате JSON:
+{"valid": true/false, "reason": "...", "explanation": "2-3 предложения тренеру: почему именно эта тренировка сейчас"}
+
+Если valid=false — укажи в reason конкретную ошибку. Никаких пояснений вне JSON."""
+
+
+def validate_workout(workout_text: str, user_data: dict, history: list) -> tuple[bool, str]:
+    level_map = {
+        "beginner": "новичок",
+        "intermediate": "средний",
+        "advanced": "продвинутый",
+    }
+    level = level_map.get(user_data.get("level", "beginner"), "новичок")
+    injuries = user_data.get("injuries") or "нет"
+
+    completed = [w for w in (history or []) if w["completed"]]
+    prev_distance = completed[0]["distance_meters"] if completed and completed[0].get("distance_meters") else None
+    prev_line = f"Предыдущий объём: {prev_distance} м." if prev_distance else "Предыдущих тренировок нет."
+
+    user_context = (
+        f"Уровень пловца: {level}. "
+        f"Травмы/ограничения: {injuries}. "
+        f"{prev_line}"
+    )
+
+    try:
+        response = _get_client().chat.completions.create(
+            model="gpt-5.4-mini-2026-03-17",
+            max_completion_tokens=300,
+            temperature=0.1,
+            messages=[
+                {"role": "system", "content": VALIDATOR_PROMPT},
+                {"role": "user", "content": f"{user_context}\n\nТРЕНИРОВКА:\n{workout_text}"},
+            ],
+        )
+        raw = response.choices[0].message.content.strip()
+        raw = re.sub(r"^```json\s*|^```\s*|\s*```$", "", raw, flags=re.MULTILINE).strip()
+        data = json.loads(raw)
+        valid = bool(data.get("valid", True))
+        explanation = data.get("explanation", "")
+        return valid, explanation
+    except Exception:
+        return True, ""
+
+
+def generate_workout(user_data: dict, history: list = None) -> tuple[str, str]:
     level_map = {
         "beginner": "Новичок (плохо знает технику, плывёт медленно)",
         "intermediate": "Средний уровень (уверенная техника, 1-2 км за тренировку)",
@@ -312,16 +365,38 @@ def generate_workout(user_data: dict, history: list = None) -> str:
         f"Составь одну тренировку. Учти аналитику, примени логику прогрессии и обязательно включи раздел техники."
     )
 
-    response = _get_client().chat.completions.create(
-        model="gpt-5.4-mini-2026-03-17",
-        max_completion_tokens=2048,
-        temperature=0.7,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ],
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": prompt},
+    ]
+
+    max_attempts = 2
+    workout_text = ""
+    explanation = ""
+
+    for attempt in range(1, max_attempts + 1):
+        response = _get_client().chat.completions.create(
+            model="gpt-5.4-mini-2026-03-17",
+            max_completion_tokens=2048,
+            temperature=0.7,
+            messages=messages,
+        )
+        workout_text = response.choices[0].message.content
+
+        valid, explanation = validate_workout(workout_text, user_data, history or [])
+        if valid:
+            return workout_text, explanation
+
+        logging.warning(
+            "Валидация тренировки не прошла (попытка %d/%d). Перегенерация.",
+            attempt, max_attempts,
+        )
+
+    logging.error(
+        "Тренировка не прошла валидацию после %d попыток. Возвращаем последний вариант как есть.",
+        max_attempts,
     )
-    return response.choices[0].message.content
+    return workout_text, explanation
 
 
 def extract_distance(workout_text: str):

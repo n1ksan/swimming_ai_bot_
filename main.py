@@ -1,12 +1,13 @@
 import logging
 from datetime import time as dtime
+from pathlib import Path
 
 from dotenv import load_dotenv
 from telegram.ext import ContextTypes
 
 from config import Config
 from bot import build_application
-from database import get_users_for_reminder
+from database import get_users_for_reminder, update_reminder_sent
 
 load_dotenv()
 
@@ -15,6 +16,14 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+
+_logs_dir = Path(__file__).parent / "logs"
+_logs_dir.mkdir(exist_ok=True)
+_reminder_file_handler = logging.FileHandler(_logs_dir / "reminders.log", encoding="utf-8")
+_reminder_file_handler.setLevel(logging.INFO)
+_reminder_file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+_reminder_logger = logging.getLogger("reminders")
+_reminder_logger.addHandler(_reminder_file_handler)
 
 
 async def _send_reminders(context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -29,8 +38,11 @@ async def _send_reminders(context: ContextTypes.DEFAULT_TYPE) -> None:
                 ),
                 parse_mode="Markdown",
             )
+            update_reminder_sent(user_id)
+            _reminder_logger.info(f"Напоминание отправлено пользователю {user_id}")
         except Exception as e:
             logger.warning(f"Не удалось отправить напоминание пользователю {user_id}: {e}")
+            _reminder_logger.error(f"Ошибка отправки напоминания пользователю {user_id}: {e}")
 
 
 def main() -> None:
