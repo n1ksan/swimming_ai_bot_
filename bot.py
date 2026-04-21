@@ -70,9 +70,82 @@ WORKOUT_TYPE_EMOJI = {
 
 # ── Вспомогательные функции ────────────────────────────────────────────────
 
-async def _send_long_text(message, text: str) -> None:
-    for i in range(0, len(text), 4000):
-        await message.reply_text(text[i:i + 4000])
+import html as _html_module
+
+
+def _workout_to_html(text: str) -> str:
+    text = re.sub(r'━{4,}', '━━━━━━━━', text)
+
+    lines = text.split('\n')
+    result = []
+    i = 0
+
+    def md_to_html(line: str) -> str:
+        line = _html_module.escape(line)
+        line = re.sub(r'\*([^*\n]+)\*', r'<b>\1</b>', line)
+        line = re.sub(r'_([^_\n]+)_', r'<i>\1</i>', line)
+        return line
+
+    def is_sep(line: str) -> bool:
+        s = line.strip()
+        return bool(s) and all(c == '━' for c in s)
+
+    while i < len(lines):
+        # Паттерн секции: разделитель + заголовок + разделитель
+        if (is_sep(lines[i])
+                and i + 2 < len(lines)
+                and lines[i + 1].strip()
+                and not is_sep(lines[i + 1])
+                and is_sep(lines[i + 2])):
+
+            title = lines[i + 1]
+            result.append('\n<b>' + md_to_html(title) + '</b>')
+            i += 3
+
+            # Собираем контент до следующего разделителя
+            content = []
+            while i < len(lines) and not is_sep(lines[i]):
+                content.append(md_to_html(lines[i]))
+                i += 1
+
+            while content and not content[0].strip():
+                content.pop(0)
+            while content and not content[-1].strip():
+                content.pop()
+
+            if content:
+                result.append('<blockquote expandable>' + '\n'.join(content) + '</blockquote>')
+        else:
+            result.append(md_to_html(lines[i]))
+            i += 1
+
+    return '\n'.join(result)
+
+
+async def _send_html_text(message, text: str) -> None:
+    if len(text) <= 4000:
+        await message.reply_text(text, parse_mode="HTML")
+        return
+
+    chunks = []
+    current = []
+    current_len = 0
+
+    for paragraph in text.split('\n\n'):
+        para_len = len(paragraph) + 2
+        if current_len + para_len > 4000 and current:
+            chunks.append('\n\n'.join(current))
+            current = [paragraph]
+            current_len = para_len
+        else:
+            current.append(paragraph)
+            current_len += para_len
+
+    if current:
+        chunks.append('\n\n'.join(current))
+
+    for chunk in chunks:
+        await message.reply_text(chunk, parse_mode="HTML")
 
 
 # ── Общий помощник генерации ───────────────────────────────────────────────
@@ -109,7 +182,7 @@ async def _generate_and_send(
             [InlineKeyboardButton("📤 Сохранить тренировку", callback_data="save_workout")],
             [InlineKeyboardButton("📋 Изменить профиль", callback_data="restart")],
         ]
-        await _send_long_text(update.effective_message, workout_text)
+        await _send_html_text(update.effective_message, _workout_to_html(workout_text))
         await update.effective_message.reply_text(
             "Как прошла тренировка?",
             reply_markup=InlineKeyboardMarkup(keyboard),
@@ -391,6 +464,7 @@ async def post_workout_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await query.edit_message_text(
             "Напиши /start чтобы изменить профиль и получить новую тренировку."
         )
+
 
 
 # ── Диалог записи тренировки ───────────────────────────────────────────────
