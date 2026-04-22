@@ -431,7 +431,7 @@ def generate_workout(user_data: dict, history: list = None) -> tuple[str, str]:
         temperature=0.7,
         messages=messages,
     )
-    workout_text = response.choices[0].message.content
+    workout_text = fix_section_distances(response.choices[0].message.content)
 
     valid, explanation, corrected = validate_workout(workout_text, user_data, history or [])
     if valid:
@@ -439,31 +439,84 @@ def generate_workout(user_data: dict, history: list = None) -> tuple[str, str]:
 
     logging.warning("Валидация не прошла. Используем исправленную версию от валидатора.")
     if corrected:
-        return corrected, explanation
+        return fix_section_distances(corrected), explanation
 
     logging.error("Валидатор не вернул исправленную тренировку. Отправляем оригинал.")
     return workout_text, ""
 
 
-def extract_distance(workout_text: str) -> int | None:
+def _sum_sets(lines: list[str]) -> int:
+    """Суммирует дистанции всех строк ▸ в списке строк."""
     total = 0
-    for line in workout_text.split('\n'):
+    for line in lines:
         s = line.strip()
         if not s.startswith('▸'):
             continue
-        # N×D pattern (×, x, х, Х)
         m = re.search(r'(\d+)\s*[×xхХ]\s*(\d+)', s)
         if m:
             n, d = int(m.group(1)), int(m.group(2))
             if 1 <= n <= 50 and 25 <= d <= 3000:
                 total += n * d
         else:
-            # Одиночная дистанция: ▸ 200 м или ▸ 150 м
             m = re.search(r'(\d+)\s*м', s)
             if m:
                 d = int(m.group(1))
                 if 25 <= d <= 3000:
                     total += d
+    return total
+
+
+def fix_section_distances(workout_text: str) -> str:
+    """Пересчитывает дистанции в заголовках секций и итоговой строке ⏱."""
+    lines = workout_text.split('\n')
+    result: list[str] = []
+    i = 0
+
+    def is_sep(line: str) -> bool:
+        s = line.strip()
+        return bool(s) and all(c == '━' for c in s)
+
+    while i < len(lines):
+        if (is_sep(lines[i])
+                and i + 2 < len(lines)
+                and lines[i + 1].strip()
+                and not is_sep(lines[i + 1])
+                and is_sep(lines[i + 2])):
+
+            result.append(lines[i])       # открывающий разделитель
+            header = lines[i + 1]
+            header_idx = len(result)
+            result.append(header)         # заголовок — заменим позже
+            result.append(lines[i + 2])   # закрывающий разделитель
+            i += 3
+
+            content: list[str] = []
+            while i < len(lines) and not is_sep(lines[i]):
+                content.append(lines[i])
+                i += 1
+
+            real_dist = _sum_sets(content)
+            if real_dist > 0:
+                result[header_idx] = re.sub(
+                    r'·\s*\d[\d\s]*\s*м', f'· {real_dist} м', header
+                )
+            result.extend(content)
+        else:
+            result.append(lines[i])
+            i += 1
+
+    fixed = '\n'.join(result)
+
+    # Обновляем итоговую строку ⏱ X м · ~Y мин
+    total = _sum_sets(fixed.split('\n'))
+    if total > 0:
+        fixed = re.sub(r'(⏱\s*)\d[\d\s]*\s*м', f'\\g<1>{total} м', fixed)
+
+    return fixed
+
+
+def extract_distance(workout_text: str) -> int | None:
+    total = _sum_sets(workout_text.split('\n'))
     if total > 0:
         return total
     # Запасной: заголовок ⏱ X м
