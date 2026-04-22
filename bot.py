@@ -74,11 +74,13 @@ WORKOUT_TYPE_EMOJI = {
 import html as _html_module
 
 
-def _workout_to_html(text: str) -> str:
+def _workout_to_html(text: str) -> list[str]:
+    """Возвращает список самодостаточных HTML-блоков (ни один тег не разрезается)."""
     text = re.sub(r'━{4,}', '━━━━━━━━', text)
 
     lines = text.split('\n')
-    result = []
+    blocks: list[str] = []
+    plain: list[str] = []
     i = 0
 
     def md_to_html(line: str) -> str:
@@ -91,6 +93,12 @@ def _workout_to_html(text: str) -> str:
         s = line.strip()
         return bool(s) and all(c == '━' for c in s)
 
+    def flush_plain() -> None:
+        stripped = '\n'.join(plain).strip()
+        if stripped:
+            blocks.append(stripped)
+        plain.clear()
+
     while i < len(lines):
         # Паттерн секции: разделитель + заголовок + разделитель
         if (is_sep(lines[i])
@@ -99,48 +107,51 @@ def _workout_to_html(text: str) -> str:
                 and not is_sep(lines[i + 1])
                 and is_sep(lines[i + 2])):
 
+            flush_plain()
             title = lines[i + 1]
-            result.append('\n<b>' + md_to_html(title) + '</b>')
             i += 3
 
-            # Собираем контент до следующего разделителя
             content = []
             while i < len(lines) and not is_sep(lines[i]):
                 content.append(md_to_html(lines[i]))
                 i += 1
 
+            # Убираем крайние пустые строки и внутренние двойные пробелы —
+            # иначе \n\n внутри blockquote разрежет блок при отправке
             while content and not content[0].strip():
                 content.pop(0)
             while content and not content[-1].strip():
                 content.pop()
+            content = [ln for ln in content if ln.strip()]
 
+            body = '<b>' + md_to_html(title) + '</b>'
             if content:
-                result.append('<blockquote expandable>' + '\n'.join(content) + '</blockquote>')
+                body += '\n<blockquote expandable>' + '\n'.join(content) + '</blockquote>'
+            blocks.append(body)
         else:
-            result.append(md_to_html(lines[i]))
+            plain.append(md_to_html(lines[i]))
             i += 1
 
-    return '\n'.join(result)
+    flush_plain()
+    return blocks
 
 
-async def _send_html_text(message, text: str) -> None:
-    if len(text) <= 4000:
-        await message.reply_text(text, parse_mode="HTML")
-        return
-
-    chunks = []
-    current = []
+async def _send_html_text(message, blocks: list[str]) -> None:
+    """Отправляет список HTML-блоков сообщениями ≤ 4000 символов.
+    Блоки не разрезаются — каждый блок попадает в один чанк целиком."""
+    chunks: list[str] = []
+    current: list[str] = []
     current_len = 0
 
-    for paragraph in text.split('\n\n'):
-        para_len = len(paragraph) + 2
-        if current_len + para_len > 4000 and current:
+    for block in blocks:
+        block_len = len(block) + 2  # +2 за разделитель \n\n
+        if current_len + block_len > 4000 and current:
             chunks.append('\n\n'.join(current))
-            current = [paragraph]
-            current_len = para_len
+            current = [block]
+            current_len = block_len
         else:
-            current.append(paragraph)
-            current_len += para_len
+            current.append(block)
+            current_len += block_len
 
     if current:
         chunks.append('\n\n'.join(current))

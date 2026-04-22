@@ -152,6 +152,10 @@ The swimmer reads this on a phone at the pool. They must instantly find each tas
 ▸ Следи за: [конкретная вещь исходя из истории пловца]
 ▸ Тренировка удалась, если: [как пловец поймёт что всё сделал правильно]
 
+DISTANCE RULES (mandatory):
+- Every set distance MUST be a multiple of 50 m (50, 100, 150, 200, 250, 300, 400, 500, 600 …)
+- No set can be 0 m. Every section (РАЗМИНКА, ТЕХНИКА, ОСНОВНАЯ ЧАСТЬ, ЗАМИНКА) must contain at least one set with distance > 0 m.
+
 IMPORTANT: Write the ENTIRE workout in Russian language only. Do not use any English words in the output. Strictly follow the template — symbols ▸ and ◆ are mandatory before every bullet point."""
 
 
@@ -252,9 +256,22 @@ def _build_history_context(history: list) -> str:
     return "\n".join(lines)
 
 
-VALIDATOR_PROMPT = """You are a strict swimming methodology expert. Evaluate the workout against 6 criteria.
+VALIDATOR_PROMPT = """You are a strict swimming methodology expert. Evaluate the workout against 7 criteria.
 Respond ONLY with valid JSON (no markdown):
-{"valid": true/false, "reason": "...", "explanation": "2-3 sentences in Russian for the coach: why this workout is right for this swimmer right now"}
+
+If workout is valid:
+{"valid": true, "reason": "", "explanation": "...", "corrected_workout": null}
+
+If workout is invalid — fix ALL violations and return the corrected full workout text:
+{"valid": false, "reason": "criterion N: what is violated", "explanation": "...", "corrected_workout": "full corrected workout text in Russian"}
+
+Rules for "explanation": 2-3 sentences in Russian for the swimmer about why this workout is beneficial today.
+NEVER mention validation, errors, regeneration, anglicisms, criteria numbers, or any technical meta-information.
+
+Rules for "corrected_workout" when valid=false:
+- Rewrite the MINIMUM necessary to fix the violation(s)
+- Preserve the original structure, formatting, symbols (▸ ◆ ━), and language (Russian)
+- The corrected workout must itself pass all 7 criteria
 
 CRITERIA:
 
@@ -287,13 +304,16 @@ CRITERIA:
    If insufficient data — criterion passes automatically.
 
 7. Workout text contains no English words (must be entirely in Russian).
-   Even a single English word = valid: false.
+   Even a single English word = valid: false. Fix: translate all English words to Russian.
 
-If valid=false — state in "reason" the exact criterion number and what specifically is violated.
+8. Every set distance must be a multiple of 50 m (50, 100, 150, 200, 250, 300 …), and no set can have distance 0 m.
+   Even one non-multiple or zero distance = valid: false.
+   Fix: round each offending distance to the nearest multiple of 50 (minimum 50 m). Recalculate section totals and the header line accordingly.
+
 The "explanation" field must always be in Russian."""
 
 
-def validate_workout(workout_text: str, user_data: dict, history: list) -> tuple[bool, str]:
+def validate_workout(workout_text: str, user_data: dict, history: list) -> tuple[bool, str, str | None]:
     level_map = {
         "beginner": "новичок",
         "intermediate": "средний",
@@ -315,7 +335,7 @@ def validate_workout(workout_text: str, user_data: dict, history: list) -> tuple
     try:
         response = _get_client().chat.completions.create(
             model="gpt-5.4-mini-2026-03-17",
-            max_completion_tokens=300,
+            max_completion_tokens=3000,
             temperature=0.1,
             messages=[
                 {"role": "system", "content": VALIDATOR_PROMPT},
@@ -327,9 +347,10 @@ def validate_workout(workout_text: str, user_data: dict, history: list) -> tuple
         data = json.loads(raw)
         valid = bool(data.get("valid", True))
         explanation = data.get("explanation", "")
-        return valid, explanation
+        corrected = data.get("corrected_workout") or None
+        return valid, explanation, corrected
     except Exception:
-        return True, ""
+        return True, "", None
 
 
 def generate_workout(user_data: dict, history: list = None) -> tuple[str, str]:
@@ -404,26 +425,24 @@ def generate_workout(user_data: dict, history: list = None) -> tuple[str, str]:
         {"role": "user", "content": prompt},
     ]
 
-    workout_text = ""
-    explanation = ""
+    response = _get_client().chat.completions.create(
+        model="gpt-5.4-mini-2026-03-17",
+        max_completion_tokens=2048,
+        temperature=0.7,
+        messages=messages,
+    )
+    workout_text = response.choices[0].message.content
 
-    for attempt in range(1, 3):
-        response = _get_client().chat.completions.create(
-            model="gpt-5.4-mini-2026-03-17",
-            max_completion_tokens=2048,
-            temperature=0.7,
-            messages=messages,
-        )
-        workout_text = response.choices[0].message.content
+    valid, explanation, corrected = validate_workout(workout_text, user_data, history or [])
+    if valid:
+        return workout_text, explanation
 
-        valid, explanation = validate_workout(workout_text, user_data, history or [])
-        if valid:
-            return workout_text, explanation
+    logging.warning("Валидация не прошла. Используем исправленную версию от валидатора.")
+    if corrected:
+        return corrected, explanation
 
-        logging.warning("Валидация не прошла (попытка %d/2). Перегенерация.", attempt)
-
-    logging.error("Тренировка не прошла валидацию после 2 попыток. Отправляем последний вариант.")
-    return workout_text, explanation
+    logging.error("Валидатор не вернул исправленную тренировку. Отправляем оригинал.")
+    return workout_text, ""
 
 
 def extract_distance(workout_text: str):
