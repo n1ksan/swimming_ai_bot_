@@ -445,16 +445,30 @@ def generate_workout(user_data: dict, history: list = None) -> tuple[str, str]:
     return workout_text, ""
 
 
-def extract_distance(workout_text: str):
-    # Формат заголовка: ⏱ 1500 м · ~60 мин
-    match = re.search(r'⏱\s*(\d[\d\s]*)\s*м', workout_text)
-    if match:
-        return int(match.group(1).replace(" ", ""))
-    # Запасной вариант
-    match = re.search(r"Общий объём[:\s]+(\d[\d\s]*)\s*м", workout_text)
-    if match:
-        return int(match.group(1).replace(" ", ""))
-    return None
+def extract_distance(workout_text: str) -> int | None:
+    total = 0
+    for line in workout_text.split('\n'):
+        s = line.strip()
+        if not s.startswith('▸'):
+            continue
+        # N×D pattern (×, x, х, Х)
+        m = re.search(r'(\d+)\s*[×xхХ]\s*(\d+)', s)
+        if m:
+            n, d = int(m.group(1)), int(m.group(2))
+            if 1 <= n <= 50 and 25 <= d <= 3000:
+                total += n * d
+        else:
+            # Одиночная дистанция: ▸ 200 м или ▸ 150 м
+            m = re.search(r'(\d+)\s*м', s)
+            if m:
+                d = int(m.group(1))
+                if 25 <= d <= 3000:
+                    total += d
+    if total > 0:
+        return total
+    # Запасной: заголовок ⏱ X м
+    m = re.search(r'⏱\s*(\d[\d\s]*)\s*м', workout_text)
+    return int(m.group(1).replace(" ", "")) if m else None
 
 
 def extract_workout_type(workout_text: str) -> str:

@@ -69,6 +69,7 @@ def _migrate_db():
         ("workout_type", "TEXT"),
         ("completion_rate", "TEXT DEFAULT 'full'"),
         ("actual_distance", "INTEGER"),
+        ("saved", "INTEGER DEFAULT 0"),
     ]:
         _add_column(c, "workouts", col, col_type)
 
@@ -162,12 +163,12 @@ def update_user_field(user_id: int, field: str, value) -> None:
     conn.close()
 
 
-def save_workout(user_id: int, workout_text: str, workout_type: str = None) -> int:
+def save_workout(user_id: int, workout_text: str, workout_type: str = None, distance_meters: int = None) -> int:
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "INSERT INTO workouts (user_id, workout_text, workout_type, created_at) VALUES (?, ?, ?, ?)",
-        (user_id, workout_text, workout_type, datetime.now().isoformat()),
+        "INSERT INTO workouts (user_id, workout_text, workout_type, distance_meters, created_at) VALUES (?, ?, ?, ?, ?)",
+        (user_id, workout_text, workout_type, distance_meters, datetime.now().isoformat()),
     )
     workout_id = c.lastrowid
     conn.commit()
@@ -179,14 +180,50 @@ def get_workout_by_id(workout_id: int):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "SELECT id, workout_text, distance_meters FROM workouts WHERE id = ?",
+        "SELECT id, workout_text, distance_meters, workout_type, created_at FROM workouts WHERE id = ?",
         (workout_id,),
     )
     row = c.fetchone()
     conn.close()
     if not row:
         return None
-    return {"id": row[0], "workout_text": row[1], "distance_meters": row[2]}
+    return {
+        "id": row[0],
+        "workout_text": row[1],
+        "distance_meters": row[2],
+        "workout_type": row[3] or "выносливость",
+        "date": row[4][:10] if row[4] else "—",
+    }
+
+
+def mark_workout_saved(workout_id: int) -> None:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("UPDATE workouts SET saved = 1 WHERE id = ?", (workout_id,))
+    conn.commit()
+    conn.close()
+
+
+def get_saved_workouts(user_id: int) -> list:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        """SELECT id, workout_type, distance_meters, created_at
+           FROM workouts WHERE user_id = ? AND saved = 1
+           ORDER BY created_at DESC LIMIT 20""",
+        (user_id,),
+    )
+    rows = c.fetchall()
+    conn.close()
+    return [
+        {
+            "id": row[0],
+            "workout_type": row[1] or "выносливость",
+            "distance_meters": row[2],
+            "date": row[3][:10] if row[3] else "—",
+        }
+        for row in rows
+    ]
 
 
 def mark_workout_completed(

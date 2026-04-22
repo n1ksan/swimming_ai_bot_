@@ -20,6 +20,8 @@ from database import (
     save_workout,
     get_workout_by_id,
     mark_workout_completed,
+    mark_workout_saved,
+    get_saved_workouts,
     get_workout_history,
     get_stats,
     get_week_workouts,
@@ -136,9 +138,10 @@ def _workout_to_html(text: str) -> list[str]:
     return blocks
 
 
-async def _send_html_text(message, blocks: list[str]) -> None:
+async def _send_html_text(message, blocks: list[str]) -> list[int]:
     """Отправляет список HTML-блоков сообщениями ≤ 4000 символов.
-    Блоки не разрезаются — каждый блок попадает в один чанк целиком."""
+    Блоки не разрезаются — каждый блок попадает в один чанк целиком.
+    Возвращает список message_id отправленных сообщений."""
     chunks: list[str] = []
     current: list[str] = []
     current_len = 0
@@ -156,8 +159,11 @@ async def _send_html_text(message, blocks: list[str]) -> None:
     if current:
         chunks.append('\n\n'.join(current))
 
+    sent_ids: list[int] = []
     for chunk in chunks:
-        await message.reply_text(chunk, parse_mode="HTML")
+        sent = await message.reply_text(chunk, parse_mode="HTML")
+        sent_ids.append(sent.message_id)
+    return sent_ids
 
 
 # ── Общий помощник генерации ───────────────────────────────────────────────
@@ -185,7 +191,8 @@ async def _generate_and_send(
             return
 
         workout_type = extract_workout_type(workout_text)
-        workout_id = save_workout(user_id, workout_text, workout_type)
+        distance = extract_distance(workout_text)
+        workout_id = save_workout(user_id, workout_text, workout_type, distance)
         context.user_data["last_workout_id"] = workout_id
         context.user_data["last_workout_text"] = workout_text
 
@@ -195,12 +202,16 @@ async def _generate_and_send(
             [InlineKeyboardButton("📤 Сохранить тренировку", callback_data="save_workout")],
             [InlineKeyboardButton("📋 Изменить профиль", callback_data="restart")],
         ]
-        await _send_html_text(update.effective_message, _workout_to_html(workout_text))
+        msg_ids = await _send_html_text(update.effective_message, _workout_to_html(workout_text))
+        context.user_data["last_workout_message_ids"] = msg_ids
         if explanation:
-            await update.effective_message.reply_text(
+            expl_msg = await update.effective_message.reply_text(
                 f"💭 *Почему именно эта тренировка:*\n{explanation}",
                 parse_mode="Markdown",
             )
+            context.user_data["last_explanation_message_id"] = expl_msg.message_id
+        else:
+            context.user_data.pop("last_explanation_message_id", None)
         await update.effective_message.reply_text(
             "Как прошла тренировка?",
             reply_markup=InlineKeyboardMarkup(keyboard),
@@ -482,6 +493,19 @@ async def post_workout_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
     if query.data == "new_workout":
         await query.answer()
+        chat_id = query.message.chat_id
+        bot = query.get_bot()
+        for mid in context.user_data.pop("last_workout_message_ids", []):
+            try:
+                await bot.delete_message(chat_id, mid)
+            except Exception:
+                pass
+        expl_id = context.user_data.pop("last_explanation_message_id", None)
+        if expl_id:
+            try:
+                await bot.delete_message(chat_id, expl_id)
+            except Exception:
+                pass
         await query.edit_message_text(
             "⚙️ *Генерирую новую тренировку...* 🏊",
             parse_mode="Markdown",
@@ -489,10 +513,13 @@ async def post_workout_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await _generate_and_send(update, context, user_id)
 
     elif query.data == "save_workout":
-        workout_text = context.user_data.get("last_workout_text", "")
-        if workout_text:
-            await query.answer("📤 Тренировка отправлена в чат!", show_alert=True)
-            await _send_html_text(query.message, _workout_to_html(workout_text))
+        workout_id = context.user_data.get("last_workout_id")
+        if workout_id:
+            mark_workout_saved(workout_id)
+            await query.answer("✅ Тренировка сохранена!")
+            await query.message.reply_text(
+                "📚 Тренировка сохранена! Посмотреть все сохранённые: /saved"
+            )
         else:
             await query.answer("Тренировка не найдена. Сгенерируй новую.", show_alert=True)
 
@@ -502,6 +529,52 @@ async def post_workout_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             "Напиши /start чтобы изменить профиль и получить новую тренировку."
         )
 
+
+
+# ── /saved ────────────────────────────────────────────────────────────────
+
+_MONTHS_SHORT = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
+
+
+async def saved_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    saved = get_saved_workouts(user_id)
+
+    if not saved:
+        await update.message.reply_text(
+            "У тебя нет сохранённых тренировок.\n\n"
+            "Нажми «📤 Сохранить тренировку» после генерации, чтобы сохранить её."
+        )
+        return
+
+    keyboard = []
+    for w in saved:
+        try:
+            dt = datetime.strptime(w["date"], "%Y-%m-%d")
+            date_str = f"{dt.day} {_MONTHS_SHORT[dt.month - 1]}"
+        except ValueError:
+            date_str = w["date"]
+        emoji = WORKOUT_TYPE_EMOJI.get(w["workout_type"], "🏊")
+        dist = f" · {w['distance_meters']} м" if w["distance_meters"] else ""
+        label = f"{date_str} — {emoji} {w['workout_type']}{dist}"
+        keyboard.append([InlineKeyboardButton(label, callback_data=f"view_saved_{w['id']}")])
+
+    await update.message.reply_text(
+        "📚 *Сохранённые тренировки*\n\nНажми на тренировку чтобы открыть текст:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown",
+    )
+
+
+async def view_saved_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    workout_id = int(query.data.replace("view_saved_", ""))
+    w = get_workout_by_id(workout_id)
+    if not w:
+        await query.message.reply_text("Тренировка не найдена.")
+        return
+    await _send_html_text(query.message, _workout_to_html(w["workout_text"]))
 
 
 # ── Диалог записи тренировки ───────────────────────────────────────────────
@@ -974,6 +1047,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "🏊 *ТРЕНЕР ПО ПЛАВАНИЮ — КОМАНДЫ*\n\n"
         "/newworkout — получить тренировку\n"
+        "/saved — сохранённые тренировки\n"
         "/week — план на эту неделю\n"
         "/stats — мой прогресс\n"
         "/history — история тренировок\n"
@@ -1007,6 +1081,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 async def _post_init(app: Application) -> None:
     await app.bot.set_my_commands([
         BotCommand("newworkout", "Получить тренировку"),
+        BotCommand("saved", "Сохранённые тренировки"),
         BotCommand("week", "План на эту неделю"),
         BotCommand("stats", "Мой прогресс"),
         BotCommand("history", "История тренировок"),
@@ -1116,12 +1191,14 @@ def build_application(token: str) -> Application:
         )
     )
     app.add_handler(CommandHandler("newworkout", new_workout_cmd))
+    app.add_handler(CommandHandler("saved", saved_cmd))
     app.add_handler(CommandHandler("history", history_cmd))
     app.add_handler(CommandHandler("stats", stats_cmd))
     app.add_handler(CommandHandler("week", week_cmd))
     app.add_handler(CommandHandler("profile", profile_cmd))
     app.add_handler(CommandHandler("goal", goal_cmd))
     app.add_handler(CommandHandler("help", help_cmd))
+    app.add_handler(CallbackQueryHandler(view_saved_handler, pattern=r"^view_saved_\d+$"))
     app.add_error_handler(error_handler)
 
     return app
