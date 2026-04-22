@@ -214,7 +214,7 @@ def get_workout_history(user_id: int, limit: int = 20) -> list:
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        """SELECT id, workout_text, completed, perceived_effort, feedback, distance_meters, created_at
+        """SELECT id, workout_text, completed, perceived_effort, feedback, distance_meters, created_at, workout_type
            FROM workouts WHERE user_id = ? ORDER BY created_at DESC LIMIT ?""",
         (user_id, limit),
     )
@@ -229,6 +229,7 @@ def get_workout_history(user_id: int, limit: int = 20) -> list:
             "feedback": row[4],
             "distance_meters": row[5],
             "date": row[6][:10] if row[6] else "—",
+            "workout_type": row[7] or "выносливость",
         }
         for row in rows
     ]
