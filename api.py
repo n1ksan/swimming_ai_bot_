@@ -1,7 +1,9 @@
+import asyncio
 import hashlib
 import hmac
 import json
 import os
+from datetime import date
 from pathlib import Path
 from urllib.parse import parse_qsl, unquote
 
@@ -18,8 +20,13 @@ from database import (
     get_workout_history,
     get_week_workouts,
     mark_workout_completed,
+    mark_workout_saved,
+    get_saved_workouts,
+    save_user_profile,
+    save_workout,
     update_user_field,
 )
+from workout_generator import generate_workout, extract_distance, extract_workout_type
 
 app = FastAPI(title="SwimBot API")
 
@@ -71,9 +78,22 @@ async def root():
     return FileResponse(path)
 
 
+# ── Models ────────────────────────────────────────────────────────────────────
+
 class ProfileUpdate(BaseModel):
     field: str
     value: str
+
+
+class ProfileSetup(BaseModel):
+    level: str
+    goal: str
+    pool_length: str
+    duration: str
+    sessions_per_week: str
+    usual_distance: str | None = None
+    strokes: list[str] = []
+    injuries: str = ""
 
 
 class WorkoutLog(BaseModel):
@@ -85,31 +105,11 @@ class WorkoutLog(BaseModel):
     actual_distance: int = None
 
 
-@app.get("/api/stats")
-async def api_stats(user_id: int = Depends(get_current_user)):
-    return get_stats(user_id)
+class WorkoutSave(BaseModel):
+    workout_id: int
 
 
-@app.get("/api/history")
-async def api_history(user_id: int = Depends(get_current_user)):
-    history = get_workout_history(user_id, limit=20)
-    for w in history:
-        w.pop("workout_text", None)
-    return history
-
-
-@app.get("/api/week")
-async def api_week(user_id: int = Depends(get_current_user)):
-    return get_week_workouts(user_id)
-
-
-@app.get("/api/workout/{workout_id}")
-async def api_workout(workout_id: int, user_id: int = Depends(get_current_user)):
-    w = get_workout_by_id(workout_id)
-    if not w:
-        raise HTTPException(status_code=404, detail="Тренировка не найдена")
-    return w
-
+# ── Profile ───────────────────────────────────────────────────────────────────
 
 @app.get("/api/profile")
 async def api_profile(user_id: int = Depends(get_current_user)):
@@ -125,6 +125,94 @@ async def api_update_profile(data: ProfileUpdate, user_id: int = Depends(get_cur
         update_user_field(user_id, data.field, data.value)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True}
+
+
+@app.post("/api/profile/setup")
+async def api_profile_setup(data: ProfileSetup, user_id: int = Depends(get_current_user)):
+    save_user_profile(user_id, data.dict())
+    return {"ok": True}
+
+
+# ── Stats ─────────────────────────────────────────────────────────────────────
+
+@app.get("/api/stats")
+async def api_stats(user_id: int = Depends(get_current_user)):
+    return get_stats(user_id)
+
+
+# ── History ───────────────────────────────────────────────────────────────────
+
+@app.get("/api/history")
+async def api_history(user_id: int = Depends(get_current_user)):
+    history = get_workout_history(user_id, limit=20)
+    for w in history:
+        w.pop("workout_text", None)
+    return history
+
+
+@app.get("/api/history/saved")
+async def api_history_saved(user_id: int = Depends(get_current_user)):
+    saved = get_saved_workouts(user_id)
+    for w in saved:
+        w.pop("workout_text", None)
+    return saved
+
+
+# ── Week ──────────────────────────────────────────────────────────────────────
+
+@app.get("/api/week")
+async def api_week(user_id: int = Depends(get_current_user)):
+    return get_week_workouts(user_id)
+
+
+# ── Workouts ──────────────────────────────────────────────────────────────────
+
+@app.get("/api/workout/today")
+async def api_workout_today(user_id: int = Depends(get_current_user)):
+    history = get_workout_history(user_id, limit=5)
+    today = str(date.today())
+    for w in history:
+        if w.get("date") == today:
+            return get_workout_by_id(w["id"])
+    return None
+
+
+@app.get("/api/workout/{workout_id}")
+async def api_workout(workout_id: int, user_id: int = Depends(get_current_user)):
+    w = get_workout_by_id(workout_id)
+    if not w:
+        raise HTTPException(status_code=404, detail="Тренировка не найдена")
+    return w
+
+
+@app.post("/api/workout/generate")
+async def api_generate_workout(user_id: int = Depends(get_current_user)):
+    profile = get_user_profile(user_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Профиль не найден")
+    history = get_workout_history(user_id, limit=10)
+    loop = asyncio.get_event_loop()
+    workout_text, explanation = await loop.run_in_executor(
+        None, generate_workout, profile, history
+    )
+    workout_type = extract_workout_type(workout_text)
+    distance = extract_distance(workout_text)
+    workout_id = save_workout(user_id, workout_text, workout_type, distance)
+    return {
+        "id": workout_id,
+        "workout_text": workout_text,
+        "workout_type": workout_type,
+        "distance_meters": distance,
+        "explanation": explanation,
+        "completed": False,
+        "date": str(date.today()),
+    }
+
+
+@app.post("/api/workout/save")
+async def api_save_workout(data: WorkoutSave, user_id: int = Depends(get_current_user)):
+    mark_workout_saved(data.workout_id)
     return {"ok": True}
 
 
