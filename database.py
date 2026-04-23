@@ -62,6 +62,7 @@ def _migrate_db():
         ("reminders_enabled", "INTEGER DEFAULT 0"),
         ("created_at", "TEXT"),
         ("last_reminder_sent", "TEXT"),
+        ("usual_distance", "TEXT"),
     ]:
         _add_column(c, "users", col, col_type)
 
@@ -82,8 +83,8 @@ def save_user_profile(user_id: int, user_data: dict):
     c = conn.cursor()
     c.execute("""
         INSERT INTO users
-            (user_id, level, goal, pool_length, duration, sessions_per_week, strokes, injuries, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (user_id, level, goal, pool_length, duration, sessions_per_week, strokes, injuries, usual_distance, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(user_id) DO UPDATE SET
             level=excluded.level,
             goal=excluded.goal,
@@ -92,6 +93,7 @@ def save_user_profile(user_id: int, user_data: dict):
             sessions_per_week=excluded.sessions_per_week,
             strokes=excluded.strokes,
             injuries=excluded.injuries,
+            usual_distance=excluded.usual_distance,
             updated_at=excluded.updated_at
     """, (
         user_id,
@@ -102,6 +104,7 @@ def save_user_profile(user_id: int, user_data: dict):
         user_data.get("sessions_per_week"),
         json.dumps(user_data.get("strokes", [])),
         user_data.get("injuries"),
+        user_data.get("usual_distance"),
         datetime.now().isoformat(),
     ))
     conn.commit()
@@ -113,7 +116,8 @@ def get_user_profile(user_id: int):
     c = conn.cursor()
     c.execute(
         """SELECT level, goal, pool_length, duration, sessions_per_week, strokes, injuries,
-                  experience, best_100m_time, reminder_days, reminders_enabled, last_reminder_sent
+                  experience, best_100m_time, reminder_days, reminders_enabled, last_reminder_sent,
+                  usual_distance
            FROM users WHERE user_id = ?""",
         (user_id,),
     )
@@ -134,6 +138,7 @@ def get_user_profile(user_id: int):
         "reminder_days": row[9] or "[]",
         "reminders_enabled": row[10] or 0,
         "last_reminder_sent": row[11],
+        "usual_distance": row[12],
     }
 
 
@@ -152,7 +157,7 @@ def update_user_field(user_id: int, field: str, value) -> None:
     allowed = {
         "level", "goal", "pool_length", "duration", "sessions_per_week",
         "strokes", "injuries", "experience", "best_100m_time",
-        "reminder_days", "reminders_enabled",
+        "reminder_days", "reminders_enabled", "usual_distance",
     }
     if field not in allowed:
         raise ValueError(f"Поле {field} не разрешено")

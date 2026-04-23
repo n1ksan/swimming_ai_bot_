@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 # ── Состояния диалогов ─────────────────────────────────────────────────────
 INTRO = 10
-PROFILE_CHOICE, LEVEL, GOAL, POOL, DURATION, SESSIONS, STROKES, INJURIES = range(8)
+PROFILE_CHOICE, LEVEL, GOAL, POOL, DURATION, SESSIONS, USUAL_DISTANCE, STROKES, INJURIES = range(9)
 LOG_EFFORT, LOG_COMPLETION, LOG_COMMENT = range(3)
 PACE_INPUT = 0
 REMINDER_MENU = 0
@@ -409,6 +409,28 @@ async def sessions_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     query = update.callback_query
     await query.answer()
     context.user_data["sessions_per_week"] = query.data
+    keyboard = [
+        [InlineKeyboardButton("до 500 м", callback_data="ud_500")],
+        [InlineKeyboardButton("500–1000 м", callback_data="ud_1000")],
+        [InlineKeyboardButton("1000–1500 м", callback_data="ud_1500")],
+        [InlineKeyboardButton("1500–2500 м", callback_data="ud_2500")],
+        [InlineKeyboardButton("2500+ м", callback_data="ud_3000")],
+        [InlineKeyboardButton("Не знаю / первый раз", callback_data="ud_0")],
+    ]
+    await query.edit_message_text(
+        "📏 *Сколько метров ты обычно проплываешь за одну тренировку?*\n\n"
+        "_Это поможет тренеру подобрать правильный стартовый объём._",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown",
+    )
+    return USUAL_DISTANCE
+
+
+async def usual_distance_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    value = query.data.replace("ud_", "")
+    context.user_data["usual_distance"] = None if value == "0" else value
     context.user_data["strokes"] = []
     keyboard = [
         [InlineKeyboardButton("🏊 Вольный стиль", callback_data="freestyle")],
@@ -890,6 +912,8 @@ async def profile_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     strokes = ", ".join(STROKES_LABELS.get(s, s) for s in (profile.get("strokes") or []))
     pace = profile.get("best_100m_time")
     pace_line = f"• Темп на 100 м: {pace}\n" if pace else ""
+    usual_dist = profile.get("usual_distance")
+    usual_dist_line = f"• Обычный объём: {usual_dist} м\n" if usual_dist else ""
 
     await update.message.reply_text(
         f"👤 *Твой профиль:*\n\n"
@@ -900,6 +924,7 @@ async def profile_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         f"• Тренировок/нед: {profile['sessions_per_week']}\n"
         f"• Стили: {strokes or '—'}\n"
         f"• Ограничения: {profile['injuries'] or 'нет'}\n"
+        f"{usual_dist_line}"
         f"{pace_line}\n"
         f"Используй /start чтобы изменить профиль.",
         parse_mode="Markdown",
@@ -1148,6 +1173,7 @@ def build_application(token: str) -> Application:
             POOL: [CallbackQueryHandler(pool_handler, pattern="^(25|50)$")],
             DURATION: [CallbackQueryHandler(duration_handler, pattern="^(30|45|60|90)$")],
             SESSIONS: [CallbackQueryHandler(sessions_handler, pattern="^[2-9]$")],
+            USUAL_DISTANCE: [CallbackQueryHandler(usual_distance_handler, pattern="^ud_")],
             STROKES: [CallbackQueryHandler(strokes_handler)],
             INJURIES: [MessageHandler(filters.TEXT & ~filters.COMMAND, injuries_handler)],
         },
