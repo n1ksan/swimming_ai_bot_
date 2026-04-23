@@ -270,7 +270,7 @@
     .sheet-sub { font-size: 13px; color: var(--muted); }
     .sheet-body {
       flex: 1; overflow-y: auto; padding: 16px 20px;
-      font-size: 13px; line-height: 1.75; white-space: pre-wrap;
+      font-size: 13px; line-height: 1.75;
     }
     .sheet-foot { padding: 12px 20px 16px; flex-shrink: 0; }
 
@@ -295,6 +295,47 @@
       color: var(--muted); font-size: 13px; line-height: 1.6;
     }
     .empty-icon { font-size: 40px; margin-bottom: 12px; }
+
+    /* ── Accordion ── */
+    .acc-section { margin-bottom: 8px; border-radius: 14px; overflow: hidden; }
+    .acc-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px; cursor: pointer;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px;
+      border-left-width: 4px;
+      transition: background .15s;
+    }
+    .acc-header.open { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+    .acc-header:active { background: rgba(255,255,255,.08); }
+    .acc-title-row { display: flex; align-items: baseline; gap: 8px; }
+    .acc-name { font-size: 14px; font-weight: 600; }
+    .acc-dist { font-size: 12px; color: var(--muted); }
+    .acc-arrow { font-size: 16px; color: var(--muted); transition: transform .2s; }
+    .acc-arrow.open { transform: rotate(90deg); }
+    .acc-body {
+      display: none;
+      background: rgba(255,255,255,.03);
+      border: 1px solid var(--border); border-top: none;
+      border-bottom-left-radius: 14px; border-bottom-right-radius: 14px;
+      padding: 14px 16px;
+    }
+    .acc-body.open { display: block; }
+    .acc-exercise { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 10px; }
+    .acc-exercise + .acc-exercise { margin-top: -4px; }
+    .acc-comments { border-left: 3px solid #4D6EFF; padding-left: 12px; margin: 4px 0 12px 2px; }
+    .acc-comment { font-size: 12px; color: var(--muted); line-height: 1.6; }
+    .acc-comment-key {
+      font-size: 10px; font-weight: 700; color: #4D6EFF;
+      text-transform: uppercase; letter-spacing: .06em; margin-right: 4px;
+    }
+    .acc-text { font-size: 13px; color: rgba(255,255,255,.75); line-height: 1.65; }
+    .wk-meta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .wk-meta-chip {
+      font-size: 12px; color: var(--muted);
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 20px; padding: 3px 10px;
+    }
   </style>
 </head>
 <body>
@@ -722,6 +763,120 @@ function renderWeek(workouts) {
   }, 50);
 }
 
+// ── Workout formatter ────────────────────────────────────────────────────────
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function toggleAcc(header) {
+  const body = header.nextElementSibling;
+  const arrow = header.querySelector('.acc-arrow');
+  header.classList.toggle('open');
+  body.classList.toggle('open');
+  arrow.classList.toggle('open');
+}
+
+const SECTION_COLOR = {
+  '📌': 'rgba(255,255,255,0.2)', '🔥': '#4D6EFF',
+  '🎯': '#00D68F', '💪': '#FFCB57',
+  '🧘': '#A78BFA', '💬': '#4D6EFF',
+};
+
+function sectionColor(title) {
+  for (const [emoji, color] of Object.entries(SECTION_COLOR))
+    if (title.includes(emoji)) return color;
+  return 'var(--accent)';
+}
+
+function parseWorkout(text) {
+  const lines = text.split('\n');
+  const result = { headerMeta: [], sections: [] };
+  let i = 0;
+  while (i < lines.length && !lines[i].match(/^━+/)) {
+    const l = lines[i].trim();
+    if (l) result.headerMeta.push(l);
+    i++;
+  }
+  while (i < lines.length) {
+    const l = lines[i].trim();
+    if (l.match(/^━+$/)) {
+      i++;
+      const title = lines[i]?.trim() || '';
+      i++;
+      if (lines[i]?.trim().match(/^━+$/)) i++;
+      if (title) result.sections.push({ title, items: [] });
+      continue;
+    }
+    if (!l) { i++; continue; }
+    const cur = result.sections[result.sections.length - 1];
+    if (!cur) { i++; continue; }
+    if (l.startsWith('▸')) {
+      cur.items.push({ type: 'exercise', text: l.slice(1).trim() });
+    } else if (l.startsWith('◆')) {
+      const colon = l.indexOf(':');
+      if (colon > 0) {
+        cur.items.push({ type: 'comment', key: l.slice(1, colon).trim(), text: l.slice(colon + 1).trim() });
+      } else {
+        cur.items.push({ type: 'comment', key: '', text: l.slice(1).trim() });
+      }
+    } else {
+      cur.items.push({ type: 'text', text: l });
+    }
+    i++;
+  }
+  return result;
+}
+
+function renderWorkoutHTML(parsed) {
+  const meta = parsed.headerMeta
+    .filter(l => l.startsWith('⏱'))
+    .map(l => `<span class="wk-meta-chip">${escHtml(l)}</span>`)
+    .join('');
+  const metaRow = meta ? `<div class="wk-meta-row">${meta}</div>` : '';
+
+  const sections = parsed.sections.map((sec, idx) => {
+    const color = sectionColor(sec.title);
+    const parts = sec.title.split(' · ');
+    const nameHtml = escHtml(parts[0]);
+    const dist = parts[1] ? `<span class="acc-dist">${escHtml(parts[1])}</span>` : '';
+
+    let bodyHtml = '';
+    let i = 0;
+    while (i < sec.items.length) {
+      const item = sec.items[i];
+      if (item.type === 'exercise') {
+        bodyHtml += `<div class="acc-exercise">${escHtml(item.text)}</div>`;
+        let comments = '';
+        i++;
+        while (i < sec.items.length && sec.items[i].type === 'comment') {
+          const c = sec.items[i];
+          const key = c.key ? `<span class="acc-comment-key">${escHtml(c.key)}</span>` : '';
+          comments += `<div class="acc-comment">${key}${escHtml(c.text)}</div>`;
+          i++;
+        }
+        if (comments) bodyHtml += `<div class="acc-comments">${comments}</div>`;
+      } else if (item.type === 'text') {
+        bodyHtml += `<div class="acc-text">${escHtml(item.text)}</div>`;
+        i++;
+      } else { i++; }
+    }
+
+    const open = idx === 0;
+    return `
+      <div class="acc-section">
+        <div class="acc-header${open ? ' open' : ''}" style="border-left-color:${color}" onclick="toggleAcc(this)">
+          <div class="acc-title-row">
+            <span class="acc-name">${nameHtml}</span>${dist}
+          </div>
+          <span class="acc-arrow${open ? ' open' : ''}">›</span>
+        </div>
+        <div class="acc-body${open ? ' open' : ''}">${bodyHtml}</div>
+      </div>`;
+  }).join('');
+
+  return metaRow + sections;
+}
+
 // ── SHEET ─────────────────────────────────────────────────────────────────────
 async function openWorkout(id) {
   try {
@@ -729,7 +884,8 @@ async function openWorkout(id) {
     document.getElementById('sheet-title').textContent = '🏊 ' + tLabel(w.workout_type);
     document.getElementById('sheet-sub').textContent =
       [fmtDate(w.date), fmtKm(w.distance_meters)].filter(Boolean).join('  ·  ');
-    document.getElementById('sheet-body').textContent = w.workout_text || 'Текст недоступен';
+    const parsed = parseWorkout(w.workout_text || '');
+    document.getElementById('sheet-body').innerHTML = renderWorkoutHTML(parsed);
     openSheet();
   } catch { tg?.showAlert('Не удалось загрузить тренировку'); }
 }
