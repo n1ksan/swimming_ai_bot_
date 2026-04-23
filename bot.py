@@ -180,7 +180,7 @@ async def _generate_and_send(
 
     context.user_data["is_generating"] = True
     try:
-        history = get_workout_history(user_id, limit=20)
+        history = get_workout_history(user_id, limit=10)
         try:
             workout_text, explanation = generate_workout(context.user_data, history)
         except Exception as e:
@@ -717,31 +717,52 @@ async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         )
         return
 
-    completed = [w for w in history if w["completed"]]
-    lines = ["📊 *ИСТОРИЯ ТРЕНИРОВОК* (последние 10)\n"]
-
+    keyboard = []
     for w in history:
+        try:
+            dt = datetime.strptime(w["date"], "%Y-%m-%d")
+            date_str = f"{dt.day} {_MONTHS_SHORT[dt.month - 1]}"
+        except ValueError:
+            date_str = w["date"]
         status = "✅" if w["completed"] else "⏳"
-        line = f"{status} *{w['date']}*"
-        if w["distance_meters"]:
-            line += f" — {w['distance_meters']} м"
-        if w["perceived_effort"]:
-            line += f" | 💪 {w['perceived_effort']}/10"
-        lines.append(line)
-        if w["feedback"]:
-            lines.append(f"   _{w['feedback']}_")
+        emoji = WORKOUT_TYPE_EMOJI.get(w["workout_type"], "🏊")
+        dist = f" · {w['distance_meters']} м" if w["distance_meters"] else ""
+        effort = f" · 💪{w['perceived_effort']}/10" if w["perceived_effort"] else ""
+        label = f"{status} {date_str} — {emoji} {w['workout_type']}{dist}{effort}"
+        keyboard.append([InlineKeyboardButton(label, callback_data=f"view_history_{w['id']}")])
 
+    completed = [w for w in history if w["completed"]]
+    stats_lines = []
     if completed:
-        lines.append("\n📈 *Статистика выполненных:*")
         efforts = [w["perceived_effort"] for w in completed if w["perceived_effort"]]
         distances = [w["distance_meters"] for w in completed if w["distance_meters"]]
+        parts = [f"выполнено {len(completed)}/{len(history)}"]
         if distances:
-            lines.append(f"• Средний объём: {sum(distances) // len(distances)} м")
+            parts.append(f"средний объём {sum(distances) // len(distances)} м")
         if efforts:
-            lines.append(f"• Средняя нагрузка: {sum(efforts) / len(efforts):.1f}/10")
-        lines.append(f"• Выполнено: {len(completed)}/{len(history)}")
+            parts.append(f"средняя нагрузка {sum(efforts) / len(efforts):.1f}/10")
+        stats_lines = [" · ".join(parts)]
 
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+    caption = "📊 *История тренировок*\n\nНажми на тренировку чтобы открыть текст:"
+    if stats_lines:
+        caption += "\n\n_" + stats_lines[0] + "_"
+
+    await update.message.reply_text(
+        caption,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown",
+    )
+
+
+async def view_history_handler(update: Update, _context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    workout_id = int(query.data.replace("view_history_", ""))
+    w = get_workout_by_id(workout_id)
+    if not w:
+        await query.message.reply_text("Тренировка не найдена.")
+        return
+    await _send_html_text(query.message, _workout_to_html(w["workout_text"]))
 
 
 # ── /stats ─────────────────────────────────────────────────────────────────
@@ -1199,6 +1220,7 @@ def build_application(token: str) -> Application:
     app.add_handler(CommandHandler("goal", goal_cmd))
     app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(CallbackQueryHandler(view_saved_handler, pattern=r"^view_saved_\d+$"))
+    app.add_handler(CallbackQueryHandler(view_history_handler, pattern=r"^view_history_\d+$"))
     app.add_error_handler(error_handler)
 
     return app

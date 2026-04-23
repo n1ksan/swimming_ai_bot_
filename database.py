@@ -166,11 +166,26 @@ def update_user_field(user_id: int, field: str, value) -> None:
 def save_workout(user_id: int, workout_text: str, workout_type: str = None, distance_meters: int = None) -> int:
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    c.execute(
+        "DELETE FROM workouts WHERE user_id = ? AND date(created_at) = ?",
+        (user_id, today),
+    )
+
     c.execute(
         "INSERT INTO workouts (user_id, workout_text, workout_type, distance_meters, created_at) VALUES (?, ?, ?, ?, ?)",
         (user_id, workout_text, workout_type, distance_meters, datetime.now().isoformat()),
     )
     workout_id = c.lastrowid
+
+    c.execute(
+        """DELETE FROM workouts WHERE user_id = ? AND id NOT IN (
+            SELECT id FROM workouts WHERE user_id = ? ORDER BY created_at DESC LIMIT 10
+        )""",
+        (user_id, user_id),
+    )
+
     conn.commit()
     conn.close()
     return workout_id
