@@ -1,7 +1,10 @@
 import logging
+import os
+import threading
 from datetime import time as dtime
 from pathlib import Path
 
+import uvicorn
 from dotenv import load_dotenv
 from telegram.ext import ContextTypes
 
@@ -45,9 +48,19 @@ async def _send_reminders(context: ContextTypes.DEFAULT_TYPE) -> None:
             _reminder_logger.error(f"Ошибка отправки напоминания пользователю {user_id}: {e}")
 
 
+def _run_api(port: int) -> None:
+    uvicorn.run("api:app", host="0.0.0.0", port=port, log_level="warning")
+
+
 def main() -> None:
     cfg = Config.from_env()
-    app = build_application(cfg.telegram_token)
+
+    port = int(os.environ.get("PORT", 8000))
+    api_thread = threading.Thread(target=_run_api, args=(port,), daemon=True)
+    api_thread.start()
+    logger.info(f"API запущен на порту {port}")
+
+    app = build_application(cfg.telegram_token, webapp_url=cfg.webapp_url)
 
     app.job_queue.run_daily(
         _send_reminders,
