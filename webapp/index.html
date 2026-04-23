@@ -69,19 +69,62 @@
       border: 1px solid var(--border);
       border-radius: 16px; padding: 16px;
     }
-    .card-grid {
+    .stat-row {
       display: grid; grid-template-columns: 1fr 1fr;
-      gap: 10px; margin-bottom: 20px;
+      gap: 10px; margin-bottom: 16px;
     }
     .stat-card {
       background: var(--surface);
       border: 1px solid rgba(77,110,255,0.18);
-      border-radius: 16px; padding: 16px;
-      display: flex; flex-direction: column; gap: 5px;
+      border-radius: 16px; padding: 14px 16px;
+      display: flex; flex-direction: column; gap: 4px;
     }
     .stat-card .s-label { font-size: 11px; color: var(--muted); font-weight: 500; }
-    .stat-card .s-value { font-size: 22px; font-weight: 700; }
+    .stat-card .s-value { font-size: 20px; font-weight: 700; line-height: 1.2; }
     .stat-card .s-sub { font-size: 11px; color: var(--accent); }
+
+    /* ── Hero card ── */
+    .hero-card {
+      background: linear-gradient(135deg, #1a2060 0%, #2a1860 100%);
+      border: 1px solid rgba(77,110,255,0.3);
+      border-radius: 20px; padding: 20px;
+      margin-bottom: 16px;
+      position: relative; overflow: hidden;
+    }
+    .hero-card::before {
+      content: ''; position: absolute;
+      top: -40px; right: -40px;
+      width: 140px; height: 140px;
+      background: radial-gradient(circle, rgba(77,110,255,0.25) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-top {
+      display: flex; align-items: flex-start;
+      justify-content: space-between; margin-bottom: 16px;
+    }
+    .hero-label { font-size: 12px; color: rgba(255,255,255,0.55); font-weight: 500; margin-bottom: 4px; }
+    .hero-value { font-size: 36px; font-weight: 800; line-height: 1; letter-spacing: -1px; }
+    .hero-unit { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.6); margin-top: 2px; }
+    .hero-badge {
+      background: rgba(77,110,255,0.3); border: 1px solid rgba(77,110,255,0.4);
+      border-radius: 10px; padding: 6px 12px;
+      font-size: 13px; font-weight: 600; color: #fff;
+      display: flex; align-items: center; gap: 5px; white-space: nowrap;
+    }
+    .hero-divider {
+      height: 1px; background: rgba(255,255,255,0.08); margin-bottom: 14px;
+    }
+    .hero-stats {
+      display: flex; gap: 0;
+    }
+    .hero-stat {
+      flex: 1; text-align: center;
+    }
+    .hero-stat + .hero-stat {
+      border-left: 1px solid rgba(255,255,255,0.08);
+    }
+    .hero-stat-value { font-size: 16px; font-weight: 700; }
+    .hero-stat-label { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 2px; }
 
     /* ── Typography ── */
     .page-title { font-size: 20px; font-weight: 700; margin-bottom: 20px; }
@@ -388,7 +431,7 @@ let _chart = null;
 
 async function loadHome() {
   if (C.stats) { renderHome(C.stats); return; }
-  show('home-loader'); hide('home-content');
+  show('home-loader', 'flex'); hide('home-content');
   try {
     C.stats = await api('/api/stats');
     renderHome(C.stats);
@@ -398,36 +441,44 @@ async function loadHome() {
 function renderHome(s) {
   hide('home-loader'); show('home-content');
   const today = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
-  const trendLabel = s.effort_trend || 'нет данных';
+  const trendLabel = s.effort_trend || '';
   const trendUp = trendLabel.includes('↑');
+  const trendColor = trendUp ? 'var(--green)' : trendLabel.includes('↓') ? 'var(--red)' : 'var(--muted)';
+  const totalKm = (s.total_distance / 1000).toFixed(1);
+  const monthKm = (s.distance_30d / 1000).toFixed(1);
 
   document.getElementById('home-content').innerHTML = `
     <div class="app-header">
       <div class="app-header-title">🏊 SwimBot</div>
       <div class="app-header-date">${today}</div>
     </div>
-    <div class="card-grid">
-      <div class="stat-card">
-        <span class="s-label">🔥 Серия дней</span>
-        <span class="s-value">${s.streak}</span>
-        <span class="s-sub">дней подряд</span>
+
+    <div class="hero-card">
+      <div class="hero-top">
+        <div>
+          <div class="hero-label">Всего проплыто</div>
+          <div class="hero-value">${totalKm}</div>
+          <div class="hero-unit">километров</div>
+        </div>
+        <div class="hero-badge">🔥 ${s.streak} ${streak_word(s.streak)}</div>
       </div>
-      <div class="stat-card">
-        <span class="s-label">🏅 Всего</span>
-        <span class="s-value">${(s.total_distance / 1000).toFixed(1)}</span>
-        <span class="s-sub">км за всё время</span>
-      </div>
-      <div class="stat-card">
-        <span class="s-label">📊 За месяц</span>
-        <span class="s-value">${(s.distance_30d / 1000).toFixed(1)}</span>
-        <span class="s-sub">км · ${s.workouts_30d} тр.</span>
-      </div>
-      <div class="stat-card">
-        <span class="s-label">⚡ Нагрузка</span>
-        <span class="s-value">${s.avg_effort_30d || '—'}</span>
-        <span class="s-sub" style="color:${trendUp ? 'var(--green)' : 'var(--muted)'}">${trendLabel}</span>
+      <div class="hero-divider"></div>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <div class="hero-stat-value">${monthKm} км</div>
+          <div class="hero-stat-label">за месяц</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-value">${s.workouts_30d}</div>
+          <div class="hero-stat-label">тренировок</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-value" style="color:${trendColor}">${s.avg_effort_30d || '—'}</div>
+          <div class="hero-stat-label">нагрузка</div>
+        </div>
       </div>
     </div>
+
     <p class="section-title">Активность</p>
     <div class="card">
       <div class="chart-wrap"><canvas id="hchart"></canvas></div>
@@ -436,6 +487,12 @@ function renderHome(s) {
   `;
 
   renderChart(s.last_8 || []);
+}
+
+function streak_word(n) {
+  if (n % 10 === 1 && n % 100 !== 11) return 'день';
+  if ([2,3,4].includes(n % 10) && ![12,13,14].includes(n % 100)) return 'дня';
+  return 'дней';
 }
 
 function renderChart(last8) {
@@ -478,7 +535,7 @@ function renderChart(last8) {
 // ── HISTORY ──────────────────────────────────────────────────────────────────
 async function loadHistory() {
   if (C.history) { renderHistory(C.history); return; }
-  show('history-loader');
+  show('history-loader', 'flex');
   document.getElementById('history-content').innerHTML = '';
   try {
     C.history = await api('/api/history');
@@ -517,7 +574,7 @@ const LEVELS = { beginner: '🌱 Новичок', intermediate: '🏊 Средн
 
 async function loadProfile() {
   if (C.profile) { renderProfile(C.profile); return; }
-  show('profile-loader');
+  show('profile-loader', 'flex');
   document.getElementById('profile-content').innerHTML = '';
   try {
     C.profile = await api('/api/profile');
@@ -598,7 +655,7 @@ const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
 async function loadWeek() {
   if (C.week) { renderWeek(C.week); return; }
-  show('week-loader');
+  show('week-loader', 'flex');
   document.getElementById('week-content').innerHTML = '';
   try {
     C.week = await api('/api/week');
@@ -687,7 +744,7 @@ function closeSheet() {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function show(id) { document.getElementById(id).style.display = 'flex'; }
+function show(id, type = 'block') { document.getElementById(id).style.display = type; }
 function hide(id) { document.getElementById(id).style.display = 'none'; }
 function setText(id, t) { document.getElementById(id).textContent = t; }
 
