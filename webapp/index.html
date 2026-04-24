@@ -292,11 +292,12 @@
       border-bottom-left-radius: 14px; border-bottom-right-radius: 14px; padding: 14px 16px;
     }
     .acc-body.open { display: block; }
-    .acc-exercise { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 10px; }
+    .acc-exercise { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
     .acc-exercise + .acc-exercise { margin-top: -4px; }
-    .acc-comments { border-left: 3px solid #4D6EFF; padding-left: 12px; margin: 4px 0 12px 2px; }
-    .acc-comment { font-size: 12px; color: var(--muted); line-height: 1.6; }
-    .acc-comment-key { font-size: 10px; font-weight: 700; color: #4D6EFF; text-transform: uppercase; letter-spacing: .06em; margin-right: 4px; }
+    .acc-comments { border-left: 2px solid var(--sec-color, var(--accent)); padding-left: 12px; margin: 2px 0 14px 2px; }
+    .acc-comment { font-size: 12px; color: var(--muted); line-height: 1.7; }
+    .acc-comment-key { font-weight: 600; color: var(--sec-color, var(--accent)); margin-right: 5px; opacity: 0.85; }
+    .acc-comment-val { color: rgba(255,255,255,.65); }
     .acc-text { font-size: 13px; color: rgba(255,255,255,.75); line-height: 1.65; }
     .wk-meta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
     .wk-meta-chip { font-size: 12px; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px; }
@@ -1293,10 +1294,36 @@ function toggleAcc(header) {
   arrow.classList.toggle('open');
 }
 
-const SECTION_COLOR = { '📌':'rgba(255,255,255,0.2)', '🔥':'#4D6EFF', '🎯':'#00D68F', '💪':'#FFCB57', '🧘':'#A78BFA', '💬':'#4D6EFF' };
+const SECTION_COLOR = { '📌':'rgba(200,200,200,0.35)', '🔥':'rgba(255,160,50,0.75)', '🎯':'rgba(77,110,255,0.75)', '💪':'rgba(50,205,100,0.75)', '🧘':'rgba(160,100,255,0.75)', '💬':'rgba(200,200,200,0.35)' };
 function sectionColor(title) {
   for (const [emoji, color] of Object.entries(SECTION_COLOR)) if (title.includes(emoji)) return color;
   return 'var(--accent)';
+}
+
+const DETAIL_ICONS = ['❤️','⏱','📖','💡','✅','⏸','🎯'];
+
+function pulseFmt(val) {
+  const m = val.match(/~?(\d+)\s*уд/);
+  if (!m) return val;
+  const n = parseInt(m[1]);
+  const mod10 = n % 10, mod100 = n % 100;
+  const suf = mod10 === 1 && mod100 !== 11 ? 'удар'
+            : mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20) ? 'удара'
+            : 'ударов';
+  const zone = val.match(/\(([^)]+)\)/);
+  return `${n} ${suf} за 10 секунд${zone ? ' · ' + zone[1] : ''}`;
+}
+
+function parseIconLine(l) {
+  for (const icon of DETAIL_ICONS) {
+    if (l.startsWith(icon)) {
+      const rest = l.slice(icon.length).trim();
+      const colon = rest.indexOf(':');
+      if (colon > 0) return { type: 'comment', key: rest.slice(0, colon).trim(), text: rest.slice(colon + 1).trim() };
+      return { type: 'comment', key: '', text: rest };
+    }
+  }
+  return null;
 }
 
 function parseWorkout(text) {
@@ -1324,7 +1351,9 @@ function parseWorkout(text) {
       if (colon > 0) cur.items.push({ type: 'comment', key: l.slice(1, colon).trim(), text: l.slice(colon+1).trim() });
       else cur.items.push({ type: 'comment', key: '', text: l.slice(1).trim() });
     } else {
-      cur.items.push({ type: 'text', text: l });
+      const iconItem = parseIconLine(l);
+      if (iconItem) cur.items.push(iconItem);
+      else cur.items.push({ type: 'text', text: l });
     }
     i++;
   }
@@ -1349,8 +1378,10 @@ function renderWorkoutHTML(parsed) {
         let comments = ''; i++;
         while (i < sec.items.length && sec.items[i].type === 'comment') {
           const c = sec.items[i];
-          const key = c.key ? `<span class="acc-comment-key">${escHtml(c.key)}</span>` : '';
-          comments += `<div class="acc-comment">${key}${escHtml(c.text)}</div>`;
+          const isPulse = c.key.toLowerCase().includes('пульс');
+          const valText = isPulse ? pulseFmt(c.text) : c.text;
+          const key = c.key ? `<span class="acc-comment-key">${escHtml(c.key)}:</span>` : '';
+          comments += `<div class="acc-comment">${key}<span class="acc-comment-val">${escHtml(valText)}</span></div>`;
           i++;
         }
         if (comments) bodyHtml += `<div class="acc-comments">${comments}</div>`;
@@ -1359,7 +1390,7 @@ function renderWorkoutHTML(parsed) {
     }
     const open = idx === 0;
     return `
-      <div class="acc-section">
+      <div class="acc-section" style="--sec-color:${color}">
         <div class="acc-header${open?' open':''}" style="border-left-color:${color}" onclick="toggleAcc(this)">
           <div class="acc-title-row"><span class="acc-name">${nameHtml}</span>${dist}</div>
           <span class="acc-arrow${open?' open':''}">›</span>
