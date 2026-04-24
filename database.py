@@ -226,6 +226,16 @@ def get_workout_by_id(workout_id: int):
     }
 
 
+def delete_workout(workout_id: int, user_id: int) -> bool:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("DELETE FROM workouts WHERE id = ? AND user_id = ?", (workout_id, user_id))
+    deleted = c.rowcount > 0
+    conn.commit()
+    conn.close()
+    return deleted
+
+
 def mark_workout_saved(workout_id: int) -> None:
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()

@@ -127,17 +127,21 @@
     .workout-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
     .btn-full { grid-column: 1 / -1; }
     .done-badge { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--green); font-weight: 600; padding: 10px 0 2px; }
-    .question-panel { margin-top: 10px; display: none; }
-    .question-panel.open { display: block; }
     .question-answer { margin-top: 10px; padding: 12px 14px; background: rgba(77,110,255,0.08); border: 1px solid rgba(77,110,255,0.25); border-radius: 12px; font-size: 14px; color: rgba(255,255,255,.8); line-height: 1.6; white-space: pre-wrap; }
     .question-thinking { font-size: 13px; color: var(--muted); padding: 8px 0; text-align: center; }
 
     /* ── Workout card (history list) ── */
+    .wc-swipe-wrap { position: relative; margin-bottom: 10px; border-radius: 14px; overflow: hidden; }
+    .wc-delete-action { position: absolute; right: 0; top: 0; bottom: 0; width: 72px;
+      background: #e53935; display: flex; align-items: center; justify-content: center;
+      border-radius: 0 14px 14px 0; }
+    .wc-delete-action svg { width: 22px; height: 22px; stroke: #fff; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
     .workout-card {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 14px; padding: 14px 14px 14px 20px; margin-bottom: 10px;
-      cursor: pointer; transition: border-color .2s, box-shadow .2s;
+      border-radius: 14px; padding: 14px 14px 14px 20px;
+      cursor: pointer; transition: transform .15s ease, border-color .2s, box-shadow .2s;
       display: flex; align-items: center; gap: 12px; position: relative; overflow: hidden;
+      will-change: transform; touch-action: pan-y;
     }
     .workout-card:active { box-shadow: 0 0 20px rgba(77,110,255,.15); border-color: rgba(77,110,255,.35); }
     .type-stripe { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 14px 0 0 14px; }
@@ -181,7 +185,7 @@
     .i-select, .i-input {
       width: 100%; padding: 10px 12px;
       background: rgba(255,255,255,.06); border: 1px solid var(--border);
-      border-radius: 8px; color: var(--text); font-size: 14px; font-family: inherit;
+      border-radius: 8px; color: var(--text); font-size: 16px; font-family: inherit;
       margin-bottom: 8px; outline: none;
     }
     .i-select option { background: #14152a; }
@@ -266,7 +270,7 @@
     .log-textarea {
       width: 100%; padding: 10px 12px; background: rgba(255,255,255,.06);
       border: 1px solid var(--border); border-radius: 10px; color: var(--text);
-      font-size: 13px; font-family: inherit; resize: none; outline: none; margin-bottom: 14px;
+      font-size: 16px; font-family: inherit; resize: none; outline: none; margin-bottom: 14px;
     }
 
     /* ── Chart ── */
@@ -397,6 +401,26 @@
   </div>
   <div class="sheet-body" id="log-body"></div>
   <div class="sheet-foot" id="log-foot"></div>
+</div>
+
+<!-- ── Question sheet ── -->
+<div class="sheet-overlay" id="question-overlay" onclick="closeQuestionSheet()"></div>
+<div class="sheet" id="question-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-hdr">
+    <div class="sheet-title">💬 Вопрос тренеру</div>
+    <div class="sheet-sub">Спроси о своей тренировке</div>
+  </div>
+  <div class="sheet-body">
+    <textarea class="log-textarea" id="question-input" rows="5" placeholder="Например: почему так мало отдыха между сериями?" style="width:100%;box-sizing:border-box"></textarea>
+    <div id="question-answer"></div>
+  </div>
+  <div class="sheet-foot">
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeQuestionSheet()">Закрыть</button>
+      <button class="btn btn-primary" style="flex:2" id="question-send-btn" onclick="doAskQuestion()">Отправить</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -718,19 +742,18 @@ function renderTodaySection(w) {
   const actions = w.completed
     ? `<div class="done-badge">✅ Выполнено${w.perceived_effort ? ' · ' + w.perceived_effort + '/10' : ''}${w.completion_rate ? ' · ' + completionLabel(w.completion_rate) : ''}</div>`
     : `<div class="workout-actions">
-        <button class="btn btn-primary" onclick="openLogSheet(${w.id}, afterLogHome)">✅ Выполнено</button>
-        <button class="btn btn-secondary" onclick="confirmRegenerate()">🔄 Другая</button>
-        <button class="btn btn-secondary" onclick="doAdjustWorkout(${w.id},'harder')">↑ Сложнее</button>
-        <button class="btn btn-secondary" onclick="doAdjustWorkout(${w.id},'easier')">↓ Проще</button>
-        <button class="btn btn-secondary btn-full" onclick="toggleQuestionPanel()">💬 Задать вопрос тренеру</button>
-        <button class="btn btn-secondary btn-full" onclick="doSaveWorkout(${w.id})">📤 Сохранить</button>
-      </div>
-      <div class="question-panel" id="question-panel">
-        <div style="display:flex;gap:8px;align-items:flex-end">
-          <textarea class="log-textarea" id="question-input" rows="2" placeholder="Например: почему так мало отдыха между сериями?"></textarea>
-          <button class="btn btn-primary" style="padding:10px 14px;white-space:nowrap" onclick="doAskQuestion(${w.id})">→</button>
+        <div id="choose-wrap-${w.id}" style="grid-column:1/-1">
+          <button class="btn btn-primary btn-full" onclick="chooseWorkout(${w.id})">🏊 Выбираю эту тренировку</button>
         </div>
-        <div id="question-answer"></div>
+        <div id="choose-confirm-${w.id}" style="display:none;grid-column:1/-1">
+          <p style="font-size:13px;color:var(--text-muted);text-align:center;margin:0 0 8px">Как только завершите тренировку — нажмите «Выполнено»</p>
+          <button class="btn btn-primary btn-full" onclick="openLogSheet(${w.id}, afterLogHome)">✅ Выполнено</button>
+        </div>
+        <button class="btn btn-secondary btn-full" onclick="confirmRegenerate()">🔄 Другая тренировка</button>
+        <button class="btn btn-secondary" onclick="openAdjustSheet(${w.id},'harder')">↑ Сложнее</button>
+        <button class="btn btn-secondary" onclick="openAdjustSheet(${w.id},'easier')">↓ Проще</button>
+        <button class="btn btn-secondary btn-full" onclick="openQuestionSheet(${w.id})">💬 Задать вопрос тренеру</button>
+        <button class="btn btn-secondary btn-full" onclick="doSaveWorkout(${w.id})">📤 Сохранить</button>
       </div>`;
 
   el.innerHTML = header + `
@@ -790,51 +813,94 @@ async function doSaveWorkout(id) {
   } catch { tg?.showAlert('Ошибка сохранения'); }
 }
 
-async function doAdjustWorkout(id, direction) {
+const ADJUST_OPTIONS = {
+  harder: [
+    { label: '📏 Увеличить объём (+20%)',       instr: 'Увеличь общий объём тренировки на 20–25%. Сохрани структуру и формат.' },
+    { label: '⚡ Добавить интенсивность',        instr: 'Добавь 1–2 скоростные или пороговые серии. Не меняй общий объём.' },
+    { label: '⏱ Сократить паузы между сериями', instr: 'Сократи время отдыха между всеми сериями на 20–30%. Объём не меняй.' },
+  ],
+  easier: [
+    { label: '📏 Уменьшить объём (−20%)',        instr: 'Уменьши общий объём тренировки на 20–25%. Сохрани структуру и формат.' },
+    { label: '🌊 Снизить интенсивность',         instr: 'Убери скоростные серии, всё переведи в аэробную или восстановительную зону.' },
+    { label: '⏱ Увеличить паузы между сериями', instr: 'Увеличь время отдыха между сериями на 30–50%. Объём не меняй.' },
+  ],
+};
+
+function openAdjustSheet(id, direction) {
+  const opts = ADJUST_OPTIONS[direction];
+  window._adjustOpts = opts;
+  const title = direction === 'harder' ? '↑ Сделать сложнее' : '↓ Сделать проще';
+  document.getElementById('sheet-title').textContent = title;
+  document.getElementById('sheet-sub').textContent = 'Выберите что именно изменить';
+  document.getElementById('sheet-body').innerHTML = opts.map((o, i) =>
+    `<button class="btn btn-secondary btn-full" style="margin-bottom:10px"
+       onclick="closeSheet(); doAdjustWorkout(${id}, window._adjustOpts[${i}].instr)">${o.label}</button>`
+  ).join('');
+  document.getElementById('sheet-foot').innerHTML =
+    `<button class="btn btn-secondary btn-full" onclick="closeSheet()">Отмена</button>`;
+  openSheet();
+}
+
+async function doAdjustWorkout(id, specificInstruction) {
   C.homeReady = false;
   const el = document.getElementById('today-section');
   const today = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
-  const label = direction === 'harder' ? 'Делаю сложнее…' : 'Делаю проще…';
   el.innerHTML = `
     <div class="app-header"><div class="app-header-title">🏊 SwimBot</div><div class="app-header-date">${today}</div></div>
     <p class="section-title">Тренировка на сегодня</p>
-    <div class="loader" style="padding:40px 0">⏳ ${label}</div>`;
+    <div class="loader" style="padding:40px 0">⏳ Корректирую тренировку…</div>`;
   try {
-    const w = await api('/api/workout/adjust', { method: 'POST', body: JSON.stringify({ workout_id: id, direction }) });
+    const w = await api('/api/workout/adjust', { method: 'POST', body: JSON.stringify({ workout_id: id, specific_instruction: specificInstruction }) });
     C.todayWorkout = w;
     C.homeReady = true;
     bust('history'); bust('week'); bust('stats');
     renderTodaySection(w);
-  } catch {
-    el.innerHTML = `
-      <div class="app-header"><div class="app-header-title">🏊 SwimBot</div><div class="app-header-date">${today}</div></div>
-      <p class="section-title">Тренировка на сегодня</p>
-      <div class="empty"><div class="empty-icon">😔</div>Ошибка.<br>Проверь подключение.</div>
-      <button class="btn btn-primary" style="margin-top:12px" onclick="generateWorkout()">Вернуться</button>`;
+  } catch(e) {
+    C.homeReady = true;
+    renderTodaySection(C.todayWorkout);
+    tg?.showAlert('Ошибка: ' + (e?.message || String(e)));
   }
 }
 
-function toggleQuestionPanel() {
-  const panel = document.getElementById('question-panel');
-  if (!panel) return;
-  panel.classList.toggle('open');
-  if (panel.classList.contains('open')) {
-    document.getElementById('question-input')?.focus();
-  }
+function chooseWorkout(id) {
+  const wrap = document.getElementById('choose-wrap-' + id);
+  const confirm = document.getElementById('choose-confirm-' + id);
+  if (wrap) wrap.style.display = 'none';
+  if (confirm) confirm.style.display = 'block';
 }
 
-async function doAskQuestion(id) {
+let _questionWorkoutId = null;
+
+function openQuestionSheet(id) {
+  _questionWorkoutId = id;
+  document.getElementById('question-input').value = '';
+  document.getElementById('question-answer').innerHTML = '';
+  document.getElementById('question-overlay').classList.add('open');
+  document.getElementById('question-sheet').classList.add('open');
+  setTimeout(() => document.getElementById('question-input')?.focus(), 300);
+}
+
+function closeQuestionSheet() {
+  document.getElementById('question-overlay').classList.remove('open');
+  document.getElementById('question-sheet').classList.remove('open');
+}
+
+async function doAskQuestion() {
   const input = document.getElementById('question-input');
   const answerEl = document.getElementById('question-answer');
+  const sendBtn = document.getElementById('question-send-btn');
   const question = input?.value.trim();
   if (!question) return;
   answerEl.innerHTML = '<div class="question-thinking">Думаю…</div>';
+  sendBtn.disabled = true;
   try {
-    const data = await api('/api/workout/ask', { method: 'POST', body: JSON.stringify({ workout_id: id, question }) });
+    const data = await api('/api/workout/ask', { method: 'POST', body: JSON.stringify({ workout_id: _questionWorkoutId, question }) });
     answerEl.innerHTML = `<div class="question-answer">${escHtml(data.answer)}</div>`;
     input.value = '';
   } catch {
     answerEl.innerHTML = '<div class="question-thinking">Ошибка. Попробуй ещё раз.</div>';
+  } finally {
+    sendBtn.disabled = false;
   }
 }
 
@@ -870,21 +936,105 @@ function renderHistoryList(list) {
     return;
   }
   el.innerHTML = list.map(w => `
-    <div class="workout-card" onclick="openWorkout(${w.id})">
-      <div class="type-stripe" style="background:${tColor(w.workout_type)}"></div>
-      <div class="wc-body">
-        <div class="wc-title">${tLabel(w.workout_type)}</div>
-        <div class="wc-meta">
-          <span>${fmtDate(w.date)}</span>
-          ${w.distance_meters ? `<span>·</span><span>${fmtKm(w.distance_meters)}</span>` : ''}
-          <span>·</span>${badge(w)}
-          ${w.perceived_effort ? `<span>·</span><span>${w.perceived_effort}/10</span>` : ''}
-        </div>
-        ${w.perceived_effort ? `<div class="effort-bar"><div class="effort-fill" style="width:${w.perceived_effort*10}%"></div></div>` : ''}
+    <div class="wc-swipe-wrap" id="wrap-${w.id}">
+      <div class="wc-delete-action" onclick="deleteWorkout(${w.id})">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
       </div>
-      <span style="color:var(--muted);font-size:18px;flex-shrink:0">›</span>
+      <div class="workout-card" id="card-${w.id}" onclick="onCardClick(event,${w.id})">
+        <div class="type-stripe" style="background:${tColor(w.workout_type)}"></div>
+        <div class="wc-body">
+          <div class="wc-title">${tLabel(w.workout_type)}</div>
+          <div class="wc-meta">
+            <span>${fmtDate(w.date)}</span>
+            ${w.distance_meters ? `<span>·</span><span>${fmtKm(w.distance_meters)}</span>` : ''}
+            <span>·</span>${badge(w)}
+            ${w.perceived_effort ? `<span>·</span><span>${w.perceived_effort}/10</span>` : ''}
+          </div>
+          ${w.perceived_effort ? `<div class="effort-bar"><div class="effort-fill" style="width:${w.perceived_effort*10}%"></div></div>` : ''}
+        </div>
+        <span style="color:var(--muted);font-size:18px;flex-shrink:0">›</span>
+      </div>
     </div>`).join('');
 }
+
+function onCardClick(e, id) {
+  const card = document.getElementById('card-' + id);
+  if (card && parseFloat(card.style.transform?.replace('translateX(', '') || 0) < -10) {
+    resetSwipe(id);
+  } else {
+    openWorkout(id);
+  }
+}
+
+function resetSwipe(id) {
+  const card = document.getElementById('card-' + id);
+  if (card) { card.style.transition = 'transform .2s ease'; card.style.transform = 'translateX(0)'; }
+}
+
+function resetAllSwipes(exceptId) {
+  document.querySelectorAll('.workout-card').forEach(c => {
+    const cid = c.id.replace('card-', '');
+    if (cid !== String(exceptId)) { c.style.transition = 'transform .2s ease'; c.style.transform = 'translateX(0)'; }
+  });
+}
+
+async function deleteWorkout(id) {
+  const wrap = document.getElementById('wrap-' + id);
+  if (!wrap) return;
+  wrap.style.transition = 'opacity .2s, transform .2s';
+  wrap.style.opacity = '0';
+  wrap.style.transform = 'translateX(-100%)';
+  try {
+    await api(`/api/workout/${id}`, { method: 'DELETE' });
+    C.history = null; C.saved = null;
+    setTimeout(() => wrap.remove(), 200);
+  } catch {
+    wrap.style.transition = '';
+    wrap.style.opacity = '1';
+    wrap.style.transform = '';
+    resetSwipe(id);
+    alert('Не удалось удалить. Попробуй ещё раз.');
+  }
+}
+
+(function initSwipe() {
+  let startX, startY, cardEl, cardId, swiping = false;
+  const THRESHOLD = 72;
+
+  document.addEventListener('touchstart', e => {
+    const card = e.target.closest('.workout-card');
+    if (!card) return;
+    cardEl = card;
+    cardId = card.id.replace('card-', '');
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    swiping = false;
+    cardEl.style.transition = 'none';
+  }, { passive: true });
+
+  document.addEventListener('touchmove', e => {
+    if (!cardEl) return;
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if (!swiping && Math.abs(dy) > Math.abs(dx)) { cardEl = null; return; }
+    swiping = true;
+    if (dx > 0) { cardEl.style.transform = 'translateX(0)'; return; }
+    resetAllSwipes(cardId);
+    cardEl.style.transform = `translateX(${Math.max(dx, -THRESHOLD)}px)`;
+  }, { passive: true });
+
+  document.addEventListener('touchend', () => {
+    if (!cardEl) return;
+    const dx = parseFloat(cardEl.style.transform?.replace('translateX(', '') || 0);
+    cardEl.style.transition = 'transform .2s ease';
+    if (dx < -THRESHOLD * 0.6) {
+      cardEl.style.transform = `translateX(-${THRESHOLD}px)`;
+    } else {
+      cardEl.style.transform = 'translateX(0)';
+    }
+    cardEl = null;
+  });
+})();
 
 // ── PROFILE ───────────────────────────────────────────────────────────────────
 const GOALS = { fitness: '💪 Физ. форма', weight_loss: '🔥 Снижение веса', competition: '🥇 Соревнования', technique: '🎯 Техника' };

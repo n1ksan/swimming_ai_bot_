@@ -21,6 +21,7 @@ from database import (
     get_week_workouts,
     mark_workout_completed,
     mark_workout_saved,
+    delete_workout,
     get_saved_workouts,
     save_user_profile,
     save_workout,
@@ -115,7 +116,8 @@ class WorkoutSave(BaseModel):
 
 class WorkoutAdjust(BaseModel):
     workout_id: int
-    direction: str  # "harder" | "easier"
+    direction: str = ""
+    specific_instruction: str = ""
 
 
 class WorkoutQuestion(BaseModel):
@@ -238,11 +240,11 @@ async def api_adjust_workout(data: WorkoutAdjust, user_id: int = Depends(get_cur
     profile = get_user_profile(user_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Профиль не найден")
-    if data.direction not in ("harder", "easier"):
+    if not data.specific_instruction and data.direction not in ("harder", "easier"):
         raise HTTPException(status_code=400, detail="direction must be 'harder' or 'easier'")
     loop = asyncio.get_event_loop()
     new_text = await loop.run_in_executor(
-        None, adjust_workout, workout["workout_text"], data.direction, profile
+        None, adjust_workout, workout["workout_text"], data.direction, profile, data.specific_instruction
     )
     workout_type = extract_workout_type(new_text)
     distance = extract_distance(new_text)
@@ -269,6 +271,13 @@ async def api_ask_workout(data: WorkoutQuestion, user_id: int = Depends(get_curr
         None, ask_workout_question, workout["workout_text"], data.question
     )
     return {"answer": answer}
+
+
+@app.delete("/api/workout/{workout_id}")
+async def api_delete_workout(workout_id: int, user_id: int = Depends(get_current_user)):
+    if not delete_workout(workout_id, user_id):
+        raise HTTPException(status_code=404, detail="Тренировка не найдена")
+    return {"ok": True}
 
 
 @app.post("/api/workout/log")
