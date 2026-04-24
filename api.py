@@ -194,12 +194,12 @@ async def api_generate_workout(user_id: int = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Профиль не найден")
     history = get_workout_history(user_id, limit=10)
     loop = asyncio.get_event_loop()
-    workout_text, explanation = await loop.run_in_executor(
+    workout_text, explanation, used_exercises = await loop.run_in_executor(
         None, generate_workout, profile, history
     )
     workout_type = extract_workout_type(workout_text)
     distance = extract_distance(workout_text)
-    workout_id = save_workout(user_id, workout_text, workout_type, distance)
+    workout_id = save_workout(user_id, workout_text, workout_type, distance, used_exercises)
     return {
         "id": workout_id,
         "workout_text": workout_text,

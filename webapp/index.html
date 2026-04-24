@@ -533,6 +533,14 @@ const OB_STEPS = [
     { v: 'butterfly', l: '🦋 Баттерфляй' },
     { v: 'all', l: '✅ Все стили' },
   ]},
+  { id: 'equipment', q: '🎒 Какой инвентарь есть в бассейне?', type: 'multi', opts: [
+    { v: 'kickboard', l: '🏊 Доска' },
+    { v: 'pull_buoy', l: '🟡 Колобашка' },
+    { v: 'paddles',   l: '🖐 Лопатки' },
+    { v: 'fins',      l: '🦈 Ласты' },
+    { v: 'snorkel',   l: '🤿 Трубка' },
+    { v: 'band',      l: '🔗 Резинка (стяжка)' },
+  ]},
   { id: 'injuries', q: '🩹 Есть травмы или ограничения?', type: 'text', placeholder: 'Например: болит плечо, проблемы с коленом…' },
 ];
 
@@ -839,6 +847,8 @@ async function loadProfile() {
 function renderProfile(p, s) {
   hide('profile-loader');
   const strokes = Array.isArray(p.strokes) ? p.strokes.map(st => STROKES_MAP[st] || st).join(', ') : '—';
+  const EQ_MAP = {kickboard:'Доска',pull_buoy:'Колобашка',paddles:'Лопатки',fins:'Ласты',snorkel:'Трубка',band:'Резинка'};
+  const equipment = Array.isArray(p.equipment) && p.equipment.length ? p.equipment.map(e => EQ_MAP[e] || e).join(', ') : 'нет';
   const totalKm = (s.total_distance / 1000).toFixed(1);
   const monthKm = (s.distance_30d / 1000).toFixed(1);
   const trendColor = (s.effort_trend||'').includes('↑') ? 'var(--green)' : (s.effort_trend||'').includes('↓') ? 'var(--red)' : 'var(--muted)';
@@ -875,6 +885,7 @@ function renderProfile(p, s) {
     ${pRow('📅', 'Тр. в неделю', p.sessions_per_week ? p.sessions_per_week + '×' : '—', 'sessions_per_week')}
     ${(() => { const dMap = {mon:'Пн',tue:'Вт',wed:'Ср',thu:'Чт',fri:'Пт',sat:'Сб',sun:'Вс'}; const days = Array.isArray(p.training_days) && p.training_days.length ? p.training_days.map(d => dMap[d]||d).join(', ') : '—'; return pRow('📆', 'Дни', days, 'training_days'); })()}
     ${pRow('🌊', 'Стили', strokes, 'strokes')}
+    ${pRow('🎒', 'Инвентарь', equipment, 'equipment')}
     ${pRow('🩹', 'Ограничения', p.injuries || 'нет', 'injuries')}
     ${pRow('⚡', 'Темп 100м', p.best_100m_time || '—', 'best_100m_time')}
 
@@ -906,6 +917,7 @@ function pRow(icon, label, value, field) {
 
 let _editStrokes = [];
 let _editDays = [];
+let _editEquipment = [];
 
 function editField(field) {
   // Close all other editors
@@ -959,6 +971,12 @@ function editField(field) {
         `<button class="ob-option-btn${_editDays.includes(v)?' selected':''}" id="sd-${v}" onclick="toggleEditDay('${v}')" style="text-align:center;padding:10px 4px">${l}</button>`
       ).join('') + `</div>` +
       `<button class="btn btn-primary" style="margin-top:8px;padding:10px" onclick="saveDays()">Сохранить</button>`;
+  } else if (field === 'equipment') {
+    _editEquipment = Array.isArray(p.equipment) ? [...p.equipment] : [];
+    const eqOpts = [['kickboard','🏊 Доска'],['pull_buoy','🟡 Колобашка'],['paddles','🖐 Лопатки'],['fins','🦈 Ласты'],['snorkel','🤿 Трубка'],['band','🔗 Резинка']];
+    inner = eqOpts.map(([v, l]) =>
+      `<button class="ob-option-btn${_editEquipment.includes(v)?' selected':''}" id="seq-${v}" onclick="toggleEditEquipment('${v}')">${l}</button>`
+    ).join('') + `<button class="btn btn-primary" style="margin-top:8px;padding:10px" onclick="saveEquipment()">Сохранить</button>`;
   } else if (field === 'injuries') {
     inner = `<textarea class="log-textarea" id="ei-injuries" rows="3">${p.injuries || ''}</textarea>
       <button class="btn btn-primary" style="padding:10px" onclick="saveTextField('injuries')">Сохранить</button>`;
@@ -989,6 +1007,25 @@ function toggleEditDay(val) {
   ['mon','tue','wed','thu','fri','sat','sun'].forEach(v => {
     document.getElementById('sd-' + v)?.classList.toggle('selected', _editDays.includes(v));
   });
+}
+
+function toggleEditEquipment(val) {
+  const i = _editEquipment.indexOf(val);
+  if (i >= 0) _editEquipment.splice(i, 1); else _editEquipment.push(val);
+  ['kickboard','pull_buoy','paddles','fins','snorkel','band'].forEach(v => {
+    document.getElementById('seq-' + v)?.classList.toggle('selected', _editEquipment.includes(v));
+  });
+}
+
+async function saveEquipment() {
+  const val = JSON.stringify(_editEquipment);
+  try {
+    await api('/api/profile', { method: 'POST', body: JSON.stringify({ field: 'equipment', value: val }) });
+    if (C.profile) C.profile.equipment = [..._editEquipment];
+    C.profileReady = false;
+    document.getElementById('ed-equipment').style.display = 'none';
+    loadProfile();
+  } catch { tg?.showAlert('Ошибка сохранения'); }
 }
 
 async function saveDays() {
