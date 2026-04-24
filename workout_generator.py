@@ -753,6 +753,59 @@ def generate_workout(user_data: dict, history: list = None) -> tuple[str, str]:
 
 
 # ──────────────────────────────────────────────
+# Корректировка сложности и вопросы
+# ──────────────────────────────────────────────
+
+def adjust_workout(workout_text: str, direction: str, user_data: dict) -> str:
+    """direction: 'harder' | 'easier'"""
+    if direction == "harder":
+        instruction = (
+            "Сделай эту тренировку СЛОЖНЕЕ. Увеличь общий объём на 15–20%, "
+            "добавь 1–2 более интенсивных серии (повысь пульс или сократи отдых), "
+            "или добавь скоростной блок если его нет. "
+            "Сохрани структуру, формат и язык полностью — только увеличь нагрузку."
+        )
+    else:
+        instruction = (
+            "Сделай эту тренировку ПРОЩЕ. Уменьши общий объём на 20–25%, "
+            "увеличь время отдыха между сериями, снизь интенсивность (пульс) "
+            "в наиболее тяжёлых сериях. "
+            "Сохрани структуру, формат и язык полностью — только снизь нагрузку."
+        )
+
+    response = _get_client().chat.completions.create(
+        model="gpt-5.4-mini-2026-03-17",
+        max_completion_tokens=2048,
+        temperature=0.5,
+        messages=[
+            {"role": "system", "content": _select_system_prompt(user_data)},
+            {"role": "user", "content": f"{instruction}\n\nТРЕНИРОВКА:\n{workout_text}"},
+        ],
+    )
+    return fix_section_distances(response.choices[0].message.content)
+
+
+def ask_workout_question(workout_text: str, question: str) -> str:
+    response = _get_client().chat.completions.create(
+        model="gpt-5.4-mini-2026-03-17",
+        max_completion_tokens=600,
+        temperature=0.4,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Ты профессиональный тренер по плаванию. "
+                    "Отвечай кратко и по делу на вопросы пловца о тренировке. "
+                    "Отвечай только на русском языке. Не более 4–5 предложений."
+                ),
+            },
+            {"role": "user", "content": f"Вот моя тренировка:\n\n{workout_text}\n\nВопрос: {question}"},
+        ],
+    )
+    return response.choices[0].message.content.strip()
+
+
+# ──────────────────────────────────────────────
 # Утилиты: дистанции и тип тренировки
 # ──────────────────────────────────────────────
 

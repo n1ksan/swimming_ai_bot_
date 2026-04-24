@@ -125,8 +125,12 @@
     /* ── Today workout section ── */
     .today-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 16px; }
     .workout-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
-    .btn-save { grid-column: 1 / -1; }
+    .btn-full { grid-column: 1 / -1; }
     .done-badge { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--green); font-weight: 600; padding: 10px 0 2px; }
+    .question-panel { margin-top: 10px; display: none; }
+    .question-panel.open { display: block; }
+    .question-answer { margin-top: 10px; padding: 12px 14px; background: rgba(77,110,255,0.08); border: 1px solid rgba(77,110,255,0.25); border-radius: 12px; font-size: 14px; color: rgba(255,255,255,.8); line-height: 1.6; white-space: pre-wrap; }
+    .question-thinking { font-size: 13px; color: var(--muted); padding: 8px 0; text-align: center; }
 
     /* ── Workout card (history list) ── */
     .workout-card {
@@ -716,7 +720,17 @@ function renderTodaySection(w) {
     : `<div class="workout-actions">
         <button class="btn btn-primary" onclick="openLogSheet(${w.id}, afterLogHome)">✅ Выполнено</button>
         <button class="btn btn-secondary" onclick="confirmRegenerate()">🔄 Другая</button>
-        <button class="btn btn-secondary btn-save" onclick="doSaveWorkout(${w.id})">📤 Сохранить</button>
+        <button class="btn btn-secondary" onclick="doAdjustWorkout(${w.id},'harder')">↑ Сложнее</button>
+        <button class="btn btn-secondary" onclick="doAdjustWorkout(${w.id},'easier')">↓ Проще</button>
+        <button class="btn btn-secondary btn-full" onclick="toggleQuestionPanel()">💬 Задать вопрос тренеру</button>
+        <button class="btn btn-secondary btn-full" onclick="doSaveWorkout(${w.id})">📤 Сохранить</button>
+      </div>
+      <div class="question-panel" id="question-panel">
+        <div style="display:flex;gap:8px;align-items:flex-end">
+          <textarea class="log-textarea" id="question-input" rows="2" placeholder="Например: почему так мало отдыха между сериями?"></textarea>
+          <button class="btn btn-primary" style="padding:10px 14px;white-space:nowrap" onclick="doAskQuestion(${w.id})">→</button>
+        </div>
+        <div id="question-answer"></div>
       </div>`;
 
   el.innerHTML = header + `
@@ -774,6 +788,54 @@ async function doSaveWorkout(id) {
     bust('saved');
     tg?.showAlert('📤 Тренировка сохранена!');
   } catch { tg?.showAlert('Ошибка сохранения'); }
+}
+
+async function doAdjustWorkout(id, direction) {
+  C.homeReady = false;
+  const el = document.getElementById('today-section');
+  const today = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+  const label = direction === 'harder' ? 'Делаю сложнее…' : 'Делаю проще…';
+  el.innerHTML = `
+    <div class="app-header"><div class="app-header-title">🏊 SwimBot</div><div class="app-header-date">${today}</div></div>
+    <p class="section-title">Тренировка на сегодня</p>
+    <div class="loader" style="padding:40px 0">⏳ ${label}</div>`;
+  try {
+    const w = await api('/api/workout/adjust', { method: 'POST', body: JSON.stringify({ workout_id: id, direction }) });
+    C.todayWorkout = w;
+    C.homeReady = true;
+    bust('history'); bust('week'); bust('stats');
+    renderTodaySection(w);
+  } catch {
+    el.innerHTML = `
+      <div class="app-header"><div class="app-header-title">🏊 SwimBot</div><div class="app-header-date">${today}</div></div>
+      <p class="section-title">Тренировка на сегодня</p>
+      <div class="empty"><div class="empty-icon">😔</div>Ошибка.<br>Проверь подключение.</div>
+      <button class="btn btn-primary" style="margin-top:12px" onclick="generateWorkout()">Вернуться</button>`;
+  }
+}
+
+function toggleQuestionPanel() {
+  const panel = document.getElementById('question-panel');
+  if (!panel) return;
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) {
+    document.getElementById('question-input')?.focus();
+  }
+}
+
+async function doAskQuestion(id) {
+  const input = document.getElementById('question-input');
+  const answerEl = document.getElementById('question-answer');
+  const question = input?.value.trim();
+  if (!question) return;
+  answerEl.innerHTML = '<div class="question-thinking">Думаю…</div>';
+  try {
+    const data = await api('/api/workout/ask', { method: 'POST', body: JSON.stringify({ workout_id: id, question }) });
+    answerEl.innerHTML = `<div class="question-answer">${escHtml(data.answer)}</div>`;
+    input.value = '';
+  } catch {
+    answerEl.innerHTML = '<div class="question-thinking">Ошибка. Попробуй ещё раз.</div>';
+  }
 }
 
 // ── HISTORY ───────────────────────────────────────────────────────────────────

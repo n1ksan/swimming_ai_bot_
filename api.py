@@ -26,7 +26,10 @@ from database import (
     save_workout,
     update_user_field,
 )
-from workout_generator import generate_workout, extract_distance, extract_workout_type
+from workout_generator import (
+    generate_workout, extract_distance, extract_workout_type,
+    adjust_workout, ask_workout_question,
+)
 
 app = FastAPI(title="SwimBot API")
 
@@ -108,6 +111,16 @@ class WorkoutLog(BaseModel):
 
 class WorkoutSave(BaseModel):
     workout_id: int
+
+
+class WorkoutAdjust(BaseModel):
+    workout_id: int
+    direction: str  # "harder" | "easier"
+
+
+class WorkoutQuestion(BaseModel):
+    workout_id: int
+    question: str
 
 
 # ── Profile ───────────────────────────────────────────────────────────────────
@@ -215,6 +228,47 @@ async def api_generate_workout(user_id: int = Depends(get_current_user)):
 async def api_save_workout(data: WorkoutSave, user_id: int = Depends(get_current_user)):
     mark_workout_saved(data.workout_id)
     return {"ok": True}
+
+
+@app.post("/api/workout/adjust")
+async def api_adjust_workout(data: WorkoutAdjust, user_id: int = Depends(get_current_user)):
+    workout = get_workout_by_id(data.workout_id)
+    if not workout:
+        raise HTTPException(status_code=404, detail="Тренировка не найдена")
+    profile = get_user_profile(user_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Профиль не найден")
+    if data.direction not in ("harder", "easier"):
+        raise HTTPException(status_code=400, detail="direction must be 'harder' or 'easier'")
+    loop = asyncio.get_event_loop()
+    new_text = await loop.run_in_executor(
+        None, adjust_workout, workout["workout_text"], data.direction, profile
+    )
+    workout_type = extract_workout_type(new_text)
+    distance = extract_distance(new_text)
+    new_id = save_workout(user_id, new_text, workout_type, distance)
+    return {
+        "id": new_id,
+        "workout_text": new_text,
+        "workout_type": workout_type,
+        "distance_meters": distance,
+        "completed": False,
+        "date": str(date.today()),
+    }
+
+
+@app.post("/api/workout/ask")
+async def api_ask_workout(data: WorkoutQuestion, user_id: int = Depends(get_current_user)):
+    workout = get_workout_by_id(data.workout_id)
+    if not workout:
+        raise HTTPException(status_code=404, detail="Тренировка не найдена")
+    if not data.question.strip():
+        raise HTTPException(status_code=400, detail="Вопрос не может быть пустым")
+    loop = asyncio.get_event_loop()
+    answer = await loop.run_in_executor(
+        None, ask_workout_question, workout["workout_text"], data.question
+    )
+    return {"answer": answer}
 
 
 @app.post("/api/workout/log")
