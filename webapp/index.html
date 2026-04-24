@@ -137,11 +137,11 @@
       border-radius: 0 14px 14px 0; }
     .wc-delete-action svg { width: 22px; height: 22px; stroke: #fff; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
     .workout-card {
-      background: var(--surface); border: 1px solid var(--border);
+      background: #161729; border: 1px solid var(--border);
       border-radius: 14px; padding: 14px 14px 14px 20px;
       cursor: pointer; transition: transform .15s ease, border-color .2s, box-shadow .2s;
       display: flex; align-items: center; gap: 12px; position: relative; overflow: hidden;
-      will-change: transform; touch-action: pan-y;
+      will-change: transform; touch-action: pan-y; z-index: 1;
     }
     .workout-card:active { box-shadow: 0 0 20px rgba(77,110,255,.15); border-color: rgba(77,110,255,.35); }
     .type-stripe { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 14px 0 0 14px; }
@@ -981,17 +981,35 @@ function resetAllSwipes(exceptId) {
 async function deleteWorkout(id) {
   const wrap = document.getElementById('wrap-' + id);
   if (!wrap) return;
-  wrap.style.transition = 'opacity .2s, transform .2s';
+
+  // Фиксируем высоту, чтобы CSS-переход max-height имел отправную точку
+  wrap.style.maxHeight = wrap.offsetHeight + 'px';
+
+  // Слайд влево + затухание, затем схлопывание высоты с задержкой
+  wrap.style.transition = 'opacity .2s, transform .2s, max-height .25s .15s, margin-bottom .25s .15s';
   wrap.style.opacity = '0';
   wrap.style.transform = 'translateX(-100%)';
+
+  // Небольшая задержка — сначала уходит карточка, потом пространство
+  const collapseTimer = setTimeout(() => {
+    wrap.style.maxHeight = '0';
+    wrap.style.marginBottom = '0';
+  }, 150);
+
+  // Удаляем из DOM независимо от скорости API
+  const removeTimer = setTimeout(() => wrap.remove(), 420);
+
   try {
     await api(`/api/workout/${id}`, { method: 'DELETE' });
     C.history = null; C.saved = null;
-    setTimeout(() => wrap.remove(), 200);
   } catch {
-    wrap.style.transition = '';
+    clearTimeout(collapseTimer);
+    clearTimeout(removeTimer);
+    wrap.style.transition = 'opacity .2s, transform .2s, max-height .2s, margin-bottom .2s';
     wrap.style.opacity = '1';
     wrap.style.transform = '';
+    wrap.style.maxHeight = '';
+    wrap.style.marginBottom = '';
     resetSwipe(id);
     alert('Не удалось удалить. Попробуй ещё раз.');
   }
