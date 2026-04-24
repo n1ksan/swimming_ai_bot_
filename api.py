@@ -94,6 +94,7 @@ class ProfileSetup(BaseModel):
     usual_distance: str | None = None
     strokes: list[str] = []
     injuries: str = ""
+    training_days: list[str] = []
 
 
 class WorkoutLog(BaseModel):

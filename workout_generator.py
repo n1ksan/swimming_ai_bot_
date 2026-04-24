@@ -187,7 +187,7 @@ Rest between sets takes 20-40% of total session time.
 OUTPUT FORMAT (follow exactly — character by character)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-The swimmer reads this on a phone at the pool. They must instantly find each task and understand: what to swim, how to swim it, why. Use exactly this template:
+The swimmer reads this on a phone at the pool. They must instantly scan the action line and then read the details below. Use exactly this template:
 
 🏊 ТРЕНИРОВКА — [ВЫНОСЛИВОСТЬ / СКОРОСТЬ / ТЕХНИКА / ВОССТАНОВЛЕНИЕ]
 🏷 ТИП: [то же слово строчными]
@@ -202,34 +202,58 @@ The swimmer reads this on a phone at the pool. They must instantly find each tas
 🔥 РАЗМИНКА · [X] м
 ━━━━━━━━━━━━━━━━━━━━━━━━
 
-▸ [количество × дистанция, стиль, пульс ~ХХ уд/10с, отдых если есть]
-◆ Зачем: [одна фраза]
-◆ Как плыть: [2-3 предложения — темп, дыхание, положение тела]
+РАЗМИНКА всегда состоит из 3 элементов:
+  1. Лёгкое плавание 200–400 м (выбор стиля)
+  2. Нарастающая серия: 4×[25 или 50] м (первая половина легко, вторая в полсилы)
+  3. Ноги с доской 2×[25 или 50] м
+
+Шаблон строки упражнения:
+▸ [N ×] [дистанция] м  [стиль / название]
+❤️ Пульс: ~ХХ уд/10 сек ([название зоны — Recovery/Aerobic/Threshold/Speed/Maximum на русском])
+⏱ Отдых: [X сек] или [нет]
+📖 Как плыть: [2-3 предложения — темп, дыхание, положение тела]
+💡 Зачем: [одна фраза]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
 🎯 ТЕХНИКА · [X] м
 ━━━━━━━━━━━━━━━━━━━━━━━━
 
-▸ [количество × дистанция, название упражнения, отдых]
-◆ Зачем: [что исправляет или развивает]
-◆ Как выполнять: [пошагово — положение тела, движение рук/ног, дыхание, типичные ошибки]
-◆ Правильное ощущение: [как должно чувствоваться, если делаешь верно]
+Шаблон строки упражнения:
+▸ [N ×] [дистанция] м  [название упражнения]
+💡 Зачем: [что исправляет или развивает]
+📖 Как выполнять: [пошагово — положение тела, движение рук/ног, дыхание, типичные ошибки]
+✅ Правильное ощущение: [как должно чувствоваться, если делаешь верно]
+⏱ Отдых: [X сек]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
 💪 ОСНОВНАЯ ЧАСТЬ · [X] м
 ━━━━━━━━━━━━━━━━━━━━━━━━
 
-▸ [количество × дистанция · стиль · отдых · пульс ~ХХ уд/10с]
-◆ Зачем: [цель серии]
-◆ Как плыть: [темп, ритм дыхания, где должно гореть, как понять что держишь нужный пульс]
-◆ В паузе: [что делать во время отдыха]
+ОСНОВНАЯ ЧАСТЬ в тренировках ≥ 45 мин обязательно включает:
+  - Минимум 1 серию НОГИ (с доской или без)
+  - Минимум 1 серию РУКИ (с колобашкой)
+  - Хотя бы 1 прогрессивную серию (нарастающая / пирамида / убывающий отдых)
+
+Шаблон строки упражнения:
+▸ [N ×] [дистанция] м  [стиль] [пометка: «ноги» / «руки» / «нарастание» / «пирамида» если применимо]
+❤️ Пульс: ~ХХ уд/10 сек ([название зоны])
+⏱ Отдых: [X сек]   ← или ⏱ Режим: стартуешь каждые [M:SS]  (для интервальных серий)
+📖 Как плыть: [темп, ритм дыхания, где должно гореть]
+💡 Зачем: [цель серии]
+⏸ В паузе: [что делать во время отдыха — только если отдых ≥ 30 сек]
+
+Если известны зоны темпа из профиля:
+🎯 Целевой темп: [MM:SS]/100 м
+
+Слова «цикл» и «отправление» НЕ использовать. Только «Отдых» или «Режим».
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
 🧘 ЗАМИНКА · [X] м
 ━━━━━━━━━━━━━━━━━━━━━━━━
 
-▸ [дистанция, стиль, пульс ~ХХ уд/10с]
-◆ Как плыть: [очень медленно, тянуться, свободное дыхание]
+▸ [дистанция] м  [стиль — выбор]
+❤️ Пульс: ~18–20 уд/10 сек (восстановительный)
+📖 Как плыть: очень медленно, тянуться в каждом гребке, свободное дыхание
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
 💬 ОТ ТРЕНЕРА
@@ -242,7 +266,32 @@ DISTANCE RULES (mandatory):
 - Every set distance MUST be a multiple of 50 m (50, 100, 150, 200, 250, 300, 400, 500, 600 …)
 - No set can be 0 m. Every section (РАЗМИНКА, ТЕХНИКА, ОСНОВНАЯ ЧАСТЬ, ЗАМИНКА) must contain at least one set with distance > 0 m.
 
-IMPORTANT: Write the ENTIRE workout in Russian language only. Do not use any English words in the output. Strictly follow the template — symbols ▸ and ◆ are mandatory before every bullet point."""
+FORMAT RULES (mandatory):
+- The ▸ action line contains ONLY: count × distance м  stroke/exercise name. Nothing else on that line.
+- ALL details (pulse, rest, how-to, goal, pace) go on the sub-lines with icons ❤️ ⏱ 📖 💡 ✅ ⏸ 🎯
+- Never mix pulse/rest/description into the ▸ line.
+- Icons ❤️ ⏱ 📖 💡 ✅ ⏸ 🎯 replace ◆ on all sub-lines. Do NOT use ◆ for sub-lines.
+- The ▸ symbol is still used only on action lines.
+
+IMPORTANT: Write the ENTIRE workout in Russian language only. Do not use any English words in the output. Strictly follow the template."""
+
+
+def _calc_pace_zones(best_100m: str | None) -> dict | None:
+    if not best_100m:
+        return None
+    try:
+        parts = best_100m.strip().split(":")
+        base = int(parts[0]) * 60 + int(parts[1])
+    except (ValueError, IndexError):
+        return None
+    def fmt(s: int) -> str:
+        return f"{s // 60}:{s % 60:02d}"
+    return {
+        "recovery":  fmt(int(base * 1.30)),
+        "aerobic":   fmt(int(base * 1.15)),
+        "threshold": fmt(int(base * 1.07)),
+        "speed":     fmt(int(base * 0.95)),
+    }
 
 
 def _days_since(date_str: str) -> int:
@@ -469,12 +518,57 @@ def generate_workout(user_data: dict, history: list = None) -> tuple[str, str]:
     )
     injuries = user_data.get("injuries") or "нет"
     pace = user_data.get("best_100m_time")
-    pace_line = f"• Личный темп на 100 м: {pace} — рассчитывай интервалы от этого времени\n" if pace else ""
     usual_dist = user_data.get("usual_distance")
     usual_dist_line = (
         f"• Обычный объём пловца за тренировку: {usual_dist} м — "
         f"используй как базовый ориентир для первой тренировки (если нет истории)\n"
     ) if usual_dist else ""
+
+    # Зоны темпа из личного рекорда
+    zones = _calc_pace_zones(pace)
+    if zones and pace:
+        pace_line = (
+            f"• Личный темп на 100 м: {pace}\n"
+            f"• ЗОНЫ ТЕМПА (используй для 🎯 Целевой темп в сериях):\n"
+            f"    - Восстановление: {zones['recovery']}/100 м\n"
+            f"    - Аэробная:       {zones['aerobic']}/100 м\n"
+            f"    - Порог (CSS):    {zones['threshold']}/100 м\n"
+            f"    - Скорость:       {zones['speed']}/100 м\n"
+        )
+    elif pace:
+        pace_line = f"• Личный темп на 100 м: {pace} — рассчитывай интервалы от этого времени\n"
+    else:
+        pace_line = ""
+
+    # Дни тренировок и паттерн нагрузки
+    days_map = {"mon": "Пн", "tue": "Вт", "wed": "Ср", "thu": "Чт", "fri": "Пт", "sat": "Сб", "sun": "Вс"}
+    weekday_keys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    training_days = user_data.get("training_days") or []
+    if isinstance(training_days, str):
+        import json as _json
+        try:
+            training_days = _json.loads(training_days)
+        except Exception:
+            training_days = []
+    today_key = weekday_keys[datetime.now().weekday()]
+    training_days_line = ""
+    if training_days:
+        days_ru = [days_map.get(d, d) for d in training_days]
+        yesterday_key = weekday_keys[(weekday_keys.index(today_key) - 1) % 7]
+        tomorrow_key = weekday_keys[(weekday_keys.index(today_key) + 1) % 7]
+        yesterday_train = yesterday_key in training_days
+        tomorrow_train = tomorrow_key in training_days
+        load_hint = []
+        if yesterday_train:
+            load_hint.append("вчера была тренировка → не делай две тяжёлые подряд")
+        if tomorrow_train:
+            load_hint.append("завтра тоже тренировка → оставь запас сил")
+        hint_str = "; ".join(load_hint)
+        training_days_line = (
+            f"• Дни тренировок: {', '.join(days_ru)}\n"
+            f"• Сегодня: {days_map.get(today_key, '?')}"
+            + (f" — {hint_str}" if hint_str else "") + "\n"
+        )
 
     history_context = _build_history_context(history or [])
 
@@ -504,6 +598,7 @@ def generate_workout(user_data: dict, history: list = None) -> tuple[str, str]:
         f"• Травмы/ограничения: {injuries}\n"
         f"{usual_dist_line}"
         f"{pace_line}"
+        f"{training_days_line}"
         f"• Номер тренировки у пловца: #{workout_number}"
         f"{history_context}\n\n"
         f"Составь тренировку типа {recommended}. "

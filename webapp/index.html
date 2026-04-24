@@ -499,18 +499,32 @@ const OB_STEPS = [
     { v: '90', l: '⏱ 90 минут' },
   ]},
   { id: 'sessions_per_week', q: '📅 Сколько тренировок в неделю?', type: 'single', opts: [
-    { v: '2', l: '2 раза в неделю' },
-    { v: '3', l: '3 раза в неделю' },
-    { v: '4', l: '4 раза в неделю' },
-    { v: '5', l: '5 и более раз' },
+    { v: '2',  l: '2 раза в неделю' },
+    { v: '3',  l: '3 раза в неделю' },
+    { v: '4',  l: '4 раза в неделю' },
+    { v: '5',  l: '5 раз в неделю' },
+    { v: '6',  l: '6 раз в неделю' },
+    { v: '7',  l: 'Каждый день' },
+    { v: '10', l: '2 раза в день (5 дней)' },
+    { v: '14', l: '2 раза в день (каждый день)' },
+  ]},
+  { id: 'training_days', q: '📆 В какие дни тренируешься?', type: 'multi', opts: [
+    { v: 'mon', l: 'Пн' },
+    { v: 'tue', l: 'Вт' },
+    { v: 'wed', l: 'Ср' },
+    { v: 'thu', l: 'Чт' },
+    { v: 'fri', l: 'Пт' },
+    { v: 'sat', l: 'Сб' },
+    { v: 'sun', l: 'Вс' },
   ]},
   { id: 'usual_distance', q: '📏 Сколько метров обычно проплываешь за тренировку?', type: 'single', opts: [
-    { v: '500', l: 'до 500 м' },
-    { v: '1000', l: '500–1000 м' },
-    { v: '1500', l: '1000–1500 м' },
-    { v: '2500', l: '1500–2500 м' },
-    { v: '3000', l: '2500+ м' },
-    { v: null, l: '🤷 Не знаю / первый раз' },
+    { v: '1000', l: 'до 1000 м' },
+    { v: '2000', l: '1000–2000 м' },
+    { v: '3000', l: '2000–3000 м' },
+    { v: '4000', l: '3000–4000 м' },
+    { v: '5000', l: '4000–5000 м' },
+    { v: '6000', l: '5000+ м' },
+    { v: null,   l: '🤷 Не знаю / первый раз' },
   ]},
   { id: 'strokes', q: '🌊 Какие стили предпочитаешь?', type: 'multi', opts: [
     { v: 'freestyle', l: '🏊 Вольный стиль' },
@@ -525,11 +539,12 @@ const OB_STEPS = [
 let _ob = {};
 let _obStep = 0;
 let _obStrokes = [];
+let _obMulti = [];
 
 function showOnboarding() {
   show('onboarding');
   hide('main-app');
-  _ob = {}; _obStep = 0; _obStrokes = [];
+  _ob = {}; _obStep = 0; _obStrokes = []; _obMulti = [];
   document.getElementById('ob-screen').innerHTML = `
     <div class="ob-welcome">
       <div class="ob-icon">🏊</div>
@@ -551,9 +566,10 @@ function showObStep(idx) {
       `<button class="ob-option-btn" onclick="obSelect(${JSON.stringify(o.v)})">${o.l}</button>`
     ).join('');
   } else if (step.type === 'multi') {
-    _obStrokes = [];
+    _obMulti = [];
+    if (step.id === 'strokes') _obStrokes = _obMulti;
     content = step.opts.map(o =>
-      `<button class="ob-option-btn" id="ob-ms-${o.v}" onclick="obToggleStroke('${o.v}')">${o.l}</button>`
+      `<button class="ob-option-btn" id="ob-ms-${o.v}" onclick="obToggleMulti('${o.v}')">${o.l}</button>`
     ).join('') + `<button class="btn btn-primary" style="margin-top:8px" onclick="obMultiDone()">Далее →</button>`;
   } else if (step.type === 'text') {
     content = `
@@ -583,20 +599,30 @@ function obSelect(value) {
   else finishOnboarding();
 }
 
-function obToggleStroke(val) {
-  if (val === 'all') { _obStrokes = ['all']; }
+function obToggleMulti(val) {
+  const step = OB_STEPS[_obStep];
+  const hasAll = step.opts.some(o => o.v === 'all');
+  if (hasAll && val === 'all') { _obMulti.length = 0; _obMulti.push('all'); }
   else {
-    _obStrokes = _obStrokes.filter(s => s !== 'all');
-    const i = _obStrokes.indexOf(val);
-    if (i >= 0) _obStrokes.splice(i, 1); else _obStrokes.push(val);
+    const allIdx = _obMulti.indexOf('all');
+    if (allIdx >= 0) _obMulti.splice(allIdx, 1);
+    const i = _obMulti.indexOf(val);
+    if (i >= 0) _obMulti.splice(i, 1); else _obMulti.push(val);
   }
-  OB_STEPS[_obStep].opts.forEach(o => {
-    document.getElementById('ob-ms-' + o.v)?.classList.toggle('selected', _obStrokes.includes(o.v));
+  step.opts.forEach(o => {
+    document.getElementById('ob-ms-' + o.v)?.classList.toggle('selected', _obMulti.includes(o.v));
   });
 }
 
+function obToggleStroke(val) { obToggleMulti(val); }
+
 function obMultiDone() {
-  _ob.strokes = _obStrokes.length ? _obStrokes : ['freestyle'];
+  const step = OB_STEPS[_obStep];
+  if (step.id === 'strokes') {
+    _ob.strokes = _obMulti.length ? [..._obMulti] : ['freestyle'];
+  } else {
+    _ob[step.id] = [..._obMulti];
+  }
   const next = _obStep + 1;
   if (next < OB_STEPS.length) showObStep(next);
   else finishOnboarding();
@@ -847,6 +873,7 @@ function renderProfile(p, s) {
     ${pRow('🏊', 'Бассейн', p.pool_length ? p.pool_length + ' м' : '—', 'pool_length')}
     ${pRow('⏱', 'Сессия', p.duration ? p.duration + ' мин' : '—', 'duration')}
     ${pRow('📅', 'Тр. в неделю', p.sessions_per_week ? p.sessions_per_week + '×' : '—', 'sessions_per_week')}
+    ${(() => { const dMap = {mon:'Пн',tue:'Вт',wed:'Ср',thu:'Чт',fri:'Пт',sat:'Сб',sun:'Вс'}; const days = Array.isArray(p.training_days) && p.training_days.length ? p.training_days.map(d => dMap[d]||d).join(', ') : '—'; return pRow('📆', 'Дни', days, 'training_days'); })()}
     ${pRow('🌊', 'Стили', strokes, 'strokes')}
     ${pRow('🩹', 'Ограничения', p.injuries || 'нет', 'injuries')}
     ${pRow('⚡', 'Темп 100м', p.best_100m_time || '—', 'best_100m_time')}
@@ -878,6 +905,7 @@ function pRow(icon, label, value, field) {
 }
 
 let _editStrokes = [];
+let _editDays = [];
 
 function editField(field) {
   // Close all other editors
@@ -910,8 +938,12 @@ function editField(field) {
       `<button class="ob-option-btn${String(p.duration)===v?' selected':''}" onclick="saveProfileField('duration','${v}')">${v} мин</button>`
     ).join('');
   } else if (field === 'sessions_per_week') {
-    inner = ['2','3','4','5'].map(v =>
-      `<button class="ob-option-btn${String(p.sessions_per_week)===v?' selected':''}" onclick="saveProfileField('sessions_per_week','${v}')">${v}×</button>`
+    const spwOpts = [
+      ['2','2×'], ['3','3×'], ['4','4×'], ['5','5×'],
+      ['6','6×'], ['7','каждый день'], ['10','2/день (5 дн.)'], ['14','2/день (каждый)'],
+    ];
+    inner = spwOpts.map(([v, l]) =>
+      `<button class="ob-option-btn${String(p.sessions_per_week)===v?' selected':''}" onclick="saveProfileField('sessions_per_week','${v}')">${l}</button>`
     ).join('');
   } else if (field === 'strokes') {
     _editStrokes = Array.isArray(p.strokes) ? [...p.strokes] : [];
@@ -919,6 +951,14 @@ function editField(field) {
     inner = Object.entries(strokeOpts).map(([v, l]) =>
       `<button class="ob-option-btn${_editStrokes.includes(v)?' selected':''}" id="se-${v}" onclick="toggleEditStroke('${v}')">${l}</button>`
     ).join('') + `<button class="btn btn-primary" style="margin-top:8px;padding:10px" onclick="saveStrokes()">Сохранить</button>`;
+  } else if (field === 'training_days') {
+    _editDays = Array.isArray(p.training_days) ? [...p.training_days] : [];
+    const dayOpts = [['mon','Пн'],['tue','Вт'],['wed','Ср'],['thu','Чт'],['fri','Пт'],['sat','Сб'],['sun','Вс']];
+    inner = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">` +
+      dayOpts.map(([v, l]) =>
+        `<button class="ob-option-btn${_editDays.includes(v)?' selected':''}" id="sd-${v}" onclick="toggleEditDay('${v}')" style="text-align:center;padding:10px 4px">${l}</button>`
+      ).join('') + `</div>` +
+      `<button class="btn btn-primary" style="margin-top:8px;padding:10px" onclick="saveDays()">Сохранить</button>`;
   } else if (field === 'injuries') {
     inner = `<textarea class="log-textarea" id="ei-injuries" rows="3">${p.injuries || ''}</textarea>
       <button class="btn btn-primary" style="padding:10px" onclick="saveTextField('injuries')">Сохранить</button>`;
@@ -941,6 +981,25 @@ function toggleEditStroke(val) {
   ['freestyle','backstroke','breaststroke','butterfly','all'].forEach(v => {
     document.getElementById('se-' + v)?.classList.toggle('selected', _editStrokes.includes(v));
   });
+}
+
+function toggleEditDay(val) {
+  const i = _editDays.indexOf(val);
+  if (i >= 0) _editDays.splice(i, 1); else _editDays.push(val);
+  ['mon','tue','wed','thu','fri','sat','sun'].forEach(v => {
+    document.getElementById('sd-' + v)?.classList.toggle('selected', _editDays.includes(v));
+  });
+}
+
+async function saveDays() {
+  const val = JSON.stringify(_editDays);
+  try {
+    await api('/api/profile', { method: 'POST', body: JSON.stringify({ field: 'training_days', value: val }) });
+    if (C.profile) C.profile.training_days = [..._editDays];
+    C.profileReady = false;
+    document.getElementById('ed-training_days').style.display = 'none';
+    loadProfile();
+  } catch { tg?.showAlert('Ошибка сохранения'); }
 }
 
 async function saveStrokes() {
