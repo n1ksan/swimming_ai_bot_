@@ -63,94 +63,94 @@ ADVANCED (2500+ m per session):
 TECHNIQUE DRILLS BY STROKE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Use these drills in ТЕХНИКА sections. For each drill in the output, fill in all three fields:
-◆ Зачем / ◆ Как выполнять (step by step: body position, arm/leg movement, breathing, common mistakes) / ◆ Правильное ощущение.
+Use these drills in ТЕХНИКА sections. For each drill in the output, fill in all three fields in Russian using emoji icons (never ◆):
+💡 Зачем / 📖 Как выполнять (пошагово: положение тела, движение рук/ног, дыхание, типичные ошибки) / ✅ Правильное ощущение.
 
 ──── FREESTYLE ────
-1. Fist Drill — swim with both fists closed tight. Forces the swimmer to engage the forearm as a paddle, not just the palm.
+1. Кулаки (Fist Drill) — плывёшь кролем с плотно сжатыми кулаками. Заставляет использовать предплечье как весло, а не только ладонь.
    How: close fists entirely, swim normal freestyle. Feel the forearm pressing back against the water from catch to hip. At set end, open hands and notice the dramatic improvement in "grip."
    Common mistake: opening fingers slightly — keep full fist. Correct feeling: water pressure on the entire forearm from elbow to wrist.
 
-2. Catch-Up Drill — one hand stays fully extended forward until the recovering arm catches up and touches it, then switches.
+2. Догонялка (Catch-Up Drill) — одна рука остаётся вытянутой вперёд, пока восстанавливающаяся рука не догонит и не коснётся её.
    How: start with right arm extended, left arm pulls through to hip and recovers forward to touch the right hand — then right arm pulls. Pause at the front on every stroke. Use 6 kicks per arm cycle.
    Common mistake: not waiting for the touch, rushing the cycle. Correct feeling: long glide phase, body rolls fully to each side, each stroke feels deliberate.
 
-3. Fingertip Drag — during arm recovery, drag fingertips lightly along the water surface from hip to entry.
+3. Волочение пальцами (Fingertip Drag) — во время проноса руки кончики пальцев слегка скользят по поверхности воды.
    How: as the elbow exits the water and leads the recovery high, let only the fingertips skim the surface. Elbow must be higher than the hand at all times.
    Common mistake: elbow drops low or arm swings wide. Correct feeling: high elbow on recovery, hand enters directly in front of shoulder, no wide arc.
 
-4. Side Kick (Body Rotation Drill) — kick on one side with lower arm extended forward, upper arm resting on hip. Switch sides every 6 kicks.
+4. Боковые удары (Side Kick) — удары ногами на боку, нижняя рука вытянута вперёд, верхняя вдоль тела. Смена сторон каждые 6 ударов.
    How: roll to one side, lower ear in water, lower arm extended forward, upper arm along body. Kick steadily for 6 counts, take one full stroke, rotate to other side, hold 6 kicks. Breathe by rotating head up, not lifting.
    Common mistake: head lifts instead of rotating, hips drop. Correct feeling: hip drives the rotation, body is a flat plank, kick originates from hip not knee.
 
-5. Single Arm Freestyle — one arm stays at side (or extended forward), other arm does complete strokes.
+5. Одна рука (Single Arm Freestyle) — одна рука вдоль тела (или вытянута вперёд), другая делает полный гребок.
    How: non-active arm at hip for easier version, extended for harder. Do 4–6 strokes per arm, then switch. Breathe to the side of the active arm.
    Common mistake: body rocks side to side without rotating through core. Correct feeling: full reach on entry, high elbow catch, pull all the way to hip.
 
-6. Stroke Count per Length — count the number of arm strokes for each 25 m length. Aim to reduce count by 1–2 over the set while maintaining the same speed.
+6. Подсчёт гребков (Stroke Count) — считаешь количество гребков на каждые 25 м. Цель — снизить счёт на 1–2 без потери скорости.
    How: push off, count every right-hand entry as one stroke. Record the count. Next length: focus on longer reach and stronger pull to reduce count.
    Common mistake: slowing down drastically to lower count — find the balance of power and efficiency. Correct feeling: each stroke covers more distance, body glides between strokes.
 
-7. 6-Kick Switch — 6 kicks on one side, then take one pull and rotate, 6 kicks on the other side.
-   How: same as Side Kick but with an active stroke to transition between sides. The stroke timing is: kick-kick-kick-kick-kick-kick-PULL-rotate-kick-kick-kick... Focus on the rotation happening exactly when the hand enters the water.
+7. Шесть ударов — смена (6-Kick Switch) — 6 ударов на боку, затем один гребок и поворот на другой бок, снова 6 ударов.
+   How: same as Боковые удары but with an active stroke to transition between sides. The stroke timing is: kick-kick-kick-kick-kick-kick-PULL-rotate-kick-kick-kick... Focus on the rotation happening exactly when the hand enters the water.
    Common mistake: transition stroke is rushed. Correct feeling: rotation is smooth, not jerky; body arrives on the new side in perfect streamline.
 
-8. Kick with Board — arms on kickboard, freestyle kick only.
+8. Ноги с доской (Kick with Board) — руки на доске, работают только ноги кролем.
    How: hold board with both hands, face down, legs kick from hip. Ankles relaxed, toes pointed. Kick amplitude is narrow (20–30 cm), not wide bicycle-style.
    Common mistake: bending knees excessively, kicking from knee not hip. Correct feeling: entire leg is a long lever moving from hip, feet flick like a whip at the bottom of each kick.
 
 ──── BREASTSTROKE ────
-1. Pause (Glide) Drill — complete a full 3-second stop in the streamlined glide position before the next stroke cycle.
+1. Пауза-скольжение (Pause/Glide Drill) — полная 3-секундная остановка в позиции скольжения перед следующим циклом гребка.
    How: pull, kick, then hold — arms fully extended in front, legs together, body arrow-straight. Count "one-one-thousand, two-one-thousand, three-one-thousand" before the next pull.
    Common mistake: starting the next pull before legs fully snap together. Correct feeling: the glide carries you forward with no effort; you feel momentum from the kick.
 
-2. Breaststroke Kick on Back — lie on back, arms at sides, breaststroke kick only.
+2. Удар брассом на спине (Breaststroke Kick on Back) — лежишь на спине, руки вдоль тела, работают только ноги брассом.
    How: face up, hands on thighs. Bring heels toward buttocks while letting knees drop slightly outward. Rotate feet outward (toes pointing to corners, not down), then drive heels outward and together in a circular motion.
    Common mistake: feet pointing downward instead of outward during the drive. Correct feeling: the instep of the foot presses against the water; you feel the kick in the inner thigh.
 
-3. Hands Behind Back (Kick Only) — clasp hands behind lower back, kick only in prone position.
+3. Руки за спиной (Hands Behind Back) — руки сцеплены за поясницей, работают только ноги брассом, лёжа на груди.
    How: face down, hands clasped at small of back. Kick breaststroke. This forces perfect symmetry — if one leg kicks stronger, you spin.
    Common mistake: asymmetric kick (one leg stronger). Correct feeling: perfectly straight travel, knees come up hip-width, not wider.
 
-4. Two Kicks Per One Pull — take two complete breaststroke kicks for every one arm pull.
+4. Два удара на гребок (Two Kicks Per One Pull) — два полных удара брассом на каждый один гребок руками.
    How: pull → kick → glide → kick → glide → pull → kick → glide → kick... The second kick must be as powerful as the first.
    Common mistake: second kick is half-hearted. Correct feeling: each kick has full hip extension and foot snap; the second kick is as strong as the first.
 
-5. Arms Only with Pull Buoy — pull buoy between thighs, breaststroke arms only.
+5. Только руки с колобашкой (Arms Only + Pull Buoy) — колобашка между бёдер, ноги пассивны, работают только руки брассом.
    How: hold pull buoy, face down, legs passive. Pull: elbows high, hands sweep out to shoulder width, then in toward chin (like drawing a heart), shoot arms forward into glide.
    Common mistake: hands sweep too wide past shoulders, losing power. Correct feeling: the "catch" happens when elbows are at shoulder height, hands accelerate inward and forward explosively.
 
 ──── BUTTERFLY ────
-1. Single Arm Butterfly (front arm extended) — lead arm stays extended forward, trailing arm at hip; other arm does full butterfly strokes. Breathe to the side.
+1. Одна рука баттерфляй (Single Arm Butterfly) — ведущая рука вытянута вперёд, другая делает полные гребки баттерфляем. Дыхание в сторону.
    How: left arm extended forward, right arm does full butterfly strokes. Two dolphin kicks per stroke: one when the right hand enters, one when it finishes pulling. After 6 strokes, switch arms.
    Common mistake: forgetting the double kick rhythm. Correct feeling: hips drive each kick, the wave starts at chest, flows through core to feet.
 
-2. 3-3-3 Drill — 3 strokes right arm only, 3 strokes left arm only, 3 strokes full butterfly.
+2. Упражнение 3-3-3 (3-3-3 Drill) — 3 гребка правой рукой, 3 гребка левой, 3 гребка полным баттерфляем.
    How: right arm only (left extended) × 3 → left arm only (right extended) × 3 → both arms full butterfly × 3. Repeat.
    Common mistake: losing the kick rhythm when switching. Correct feeling: the transition to full butterfly feels smooth because each arm is already warmed up individually.
 
-3. Dolphin Kick on Back — lie on back, arms at sides or overhead, full dolphin kick.
+3. Дельфин на спине (Dolphin Kick on Back) — лежишь на спине, руки вдоль тела или над головой, полный дельфиньий удар.
    How: face up, body flat. Kick from core: the movement starts at the chest pressing down, hips rise, then knees bend slightly, then feet flick. Like an undulating wave from top to bottom.
    Common mistake: kicking from knees only (bicycle-style), hips barely move. Correct feeling: the whole body undulates — chest, belly, hips, knees, feet in sequence.
 
-4. Butterfly with Freestyle Kick — butterfly arms with flutter kick instead of dolphin kick.
+4. Баттерфляй с кролевым ударом (Butterfly + Flutter Kick) — гребки баттерфляем, но удары ногами кролем вместо дельфинового.
    How: full butterfly arm stroke but with a steady freestyle kick. Allows full focus on arm timing, breathing position, and catch mechanics without the added difficulty of dolphin kick.
    Common mistake: arms rush because legs feel easy. Correct feeling: long reach on entry, catch happens before hips drop, breathing is forward (chin clears water, not head lifted).
 
 ──── BACKSTROKE ────
-1. Single Arm Backstroke — one arm strokes, other stays extended overhead or at hip.
+1. Одна рука на спине (Single Arm Backstroke) — одна рука гребёт, другая вытянута над головой или вдоль тела.
    How: right arm strokes while left stays overhead (harder) or at hip (easier). Pinky finger enters the water first, arm enters behind the shoulder (not crossing the center line). Pull through to hip, recover high.
    Common mistake: hand crosses center line on entry — causes snaking. Correct feeling: shoulder rotates fully, hand enters in line with shoulder, pull is powerful and direct.
 
-2. Kickboard on Chest — hold kickboard flat on chest, legs-only backstroke kick.
+2. Доска на груди (Kickboard on Chest) — держишь доску на груди, работают только ноги на спине.
    How: lie on back, hold board flat on chest with both hands. Kick from hip, feet near surface, toes pointed. Kick amplitude narrow (ankles 20–30 cm apart at maximum spread).
    Common mistake: knees break the surface (too much knee bend). Correct feeling: hips are at surface, kick is from hip, toes flick at the top of each kick.
 
-3. Stroke Count to Flags — swim full backstroke, counting strokes from the 5-meter flags to the wall.
+3. Гребки до флажков (Stroke Count to Flags) — плывёшь на спине, считая гребки от флажков 5м до стенки.
    How: when you pass under the flags, start counting each arm stroke. Touch the wall on the same count every length. Build a reliable number (usually 3–6 strokes depending on height and speed).
    Common mistake: inconsistent count because of varying push-off strength. Correct feeling: exact same count every length, turn happens without looking or guessing.
 
-4. Body Rotation Drill — swim backstroke focusing entirely on shoulder-to-shoulder rotation, not arm speed.
+4. Вращение корпуса на спине (Body Rotation Drill) — плывёшь на спине, концентрируясь исключительно на вращении плечо-в-плечо, не на скорости гребка.
    How: take slow, deliberate strokes. On each entry, the shoulder of the entering arm should nearly touch the chin. The pulling arm uses the rotation as a lever.
    Common mistake: flat swimming with no rotation — all arm, no core. Correct feeling: hips and shoulders rotate as one unit, stroke feels powerful with less effort.
 
@@ -265,6 +265,7 @@ The swimmer reads this on a phone at the pool. They must instantly scan the acti
 DISTANCE RULES (mandatory):
 - Every set distance MUST be a multiple of 50 m (50, 100, 150, 200, 250, 300, 400, 500, 600 …)
 - No set can be 0 m. Every section (РАЗМИНКА, ТЕХНИКА, ОСНОВНАЯ ЧАСТЬ, ЗАМИНКА) must contain at least one set with distance > 0 m.
+- If pool length = 50 m: minimum set distance is 50 m. Never write sets of 25 m in a 50 m pool.
 
 FORMAT RULES (mandatory):
 - The ▸ action line contains ONLY: count × distance м  stroke/exercise name. Nothing else on that line.
@@ -272,6 +273,7 @@ FORMAT RULES (mandatory):
 - Never mix pulse/rest/description into the ▸ line.
 - Icons ❤️ ⏱ 📖 💡 ✅ ⏸ 🎯 replace ◆ on all sub-lines. Do NOT use ◆ for sub-lines.
 - The ▸ symbol is still used only on action lines.
+- One "set" = one ▸ line. "4×100 м" is 1 set, not 4. The level set limit applies to ▸ lines inside ОСНОВНАЯ ЧАСТЬ only.
 
 IMPORTANT: Write the ENTIRE workout in Russian language only. Do not use any English words in the output. Strictly follow the template."""
 
@@ -290,7 +292,7 @@ def _calc_pace_zones(best_100m: str | None) -> dict | None:
         "recovery":  fmt(int(base * 1.30)),
         "aerobic":   fmt(int(base * 1.15)),
         "threshold": fmt(int(base * 1.07)),
-        "speed":     fmt(int(base * 0.95)),
+        "speed":     fmt(int(base * 0.98)),
     }
 
 
@@ -391,7 +393,7 @@ def _build_history_context(history: list) -> str:
     return "\n".join(lines)
 
 
-VALIDATOR_PROMPT = """You are a strict swimming methodology expert. Evaluate the workout against 7 criteria.
+VALIDATOR_PROMPT = """You are a strict swimming methodology expert. Evaluate the workout against 8 criteria.
 Respond ONLY with valid JSON (no markdown):
 
 If workout is valid:
@@ -413,7 +415,7 @@ CRITERIA:
 1. Volume matches the swimmer's level:
    • beginner: 200–800 m (recovery: 150–560 m)
    • intermediate: 800–2500 m (recovery: 560–1750 m)
-   • advanced: 1500–6000 m (recovery: 1050–4200 m)
+   • advanced: 2500–6000 m (recovery: 1750–4200 m)
 
 2. Injuries/restrictions respected. Forbidden exercise mapping:
    • shoulder/rotator cuff → no butterfly, no wide breaststroke pull
@@ -424,12 +426,14 @@ CRITERIA:
 
 3. Volume did not increase more than 10% from the previous workout (if history exists).
    If analytics state "MAXIMUM volume for next workout" — that limit must be strictly respected.
+   SKIP this criterion if there are no previous completed workouts (first session).
 
 4. All 4 sections present: РАЗМИНКА, ТЕХНИКА, ОСНОВНАЯ ЧАСТЬ, ЗАМИНКА.
    Missing any section = valid: false.
 
-5. Number of sets in main block does not exceed level limit:
+5. Number of sets in ОСНОВНАЯ ЧАСТЬ section does not exceed level limit:
    beginner — 4 sets, intermediate — 8 sets, advanced — 12 sets.
+   One "set" = one ▸ line (e.g. "4×100 м" = 1 set, not 4). Count only ▸ lines inside ОСНОВНАЯ ЧАСТЬ, not РАЗМИНКА or ТЕХНИКА.
 
 6. Workout matches the goal:
    • weight loss → at least 70% of meters in aerobic/threshold range (HR 21-27/10s)
