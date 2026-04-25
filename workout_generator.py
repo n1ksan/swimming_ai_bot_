@@ -1,10 +1,13 @@
 import json
 import logging
+import os
+import random
 import re
 from datetime import datetime
 from openai import OpenAI
 
 _client = None
+_exercises_cache = None
 
 
 def _get_client() -> OpenAI:
@@ -13,9 +16,21 @@ def _get_client() -> OpenAI:
         _client = OpenAI()
     return _client
 
-SYSTEM_PROMPT = """You are a professional swimming coach with 20 years of experience training athletes of all levels. You create strictly personalised workouts based on scientific methodology and individual swimmer data.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+def _load_exercises() -> list:
+    global _exercises_cache
+    if _exercises_cache is None:
+        path = os.path.join(os.path.dirname(__file__), "exercises.json")
+        with open(path, encoding="utf-8") as f:
+            _exercises_cache = json.load(f)
+    return _exercises_cache
+
+
+# ──────────────────────────────────────────────
+# Общие секции промтов
+# ──────────────────────────────────────────────
+
+_INTENSITY_SECTION = """━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 INTENSITY LEVELS (use heart rate per 10 sec, never zone numbers)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Instruct the swimmer to place fingers on neck immediately after a set and count beats for 10 sec. Reference max HR ~31 bpm/10s (185 bpm, formula 220−age ~35). If swimmer doesn't monitor HR — provide RPE feeling as a hint.
@@ -24,137 +39,9 @@ Recovery (~18-21/10s): easy breathing, can speak in full sentences
 Aerobic (~21-24/10s): can talk, pace sustainable for long time, light effort
 Threshold (~24-27/10s): conversation difficult, muscles slightly burn — builds endurance
 Speed endurance (~27-29/10s): hard, sustainable 1-2 min, breathing fast
-Maximum (~29-31/10s): all-out effort, 15-30 sec only, impossible to speak
+Maximum (~29-31/10s): all-out effort, 15-30 sec only, impossible to speak"""
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RULES BY LEVEL
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-BEGINNER (200–800 m per session):
-- Primary goal: technique and water confidence, NOT load
-- Only recovery and aerobic HR (up to ~24/10s), NO speed sets
-- Rest between sets: 60-90 sec
-- Short sets: 25-50 m
-- Structure: 60% warm-up + drills, 20% main set, 20% cool-down
-- Technique drills are mandatory
-- Pace: ~2:00 min/100m or slower
-- Maximum volume is 800 m REGARDLESS of session duration
-- If session > 40 min — increase rest and drills, NOT distance
-- MAX sets in main block: 4
-
-INTERMEDIATE (800–2500 m per session):
-- Short rest sets (15-30 sec)
-- Alternate load: aerobic → speed → technique → recovery
-- HR 21-29/10s depending on session goal
-- Sets: 4×100m, 6×100m, 8×50m, pyramids (50-100-150-200-150-100-50)
-- Technique drills: 15-20% of total volume
-- Pace: 1:30-2:00 min/100m
-- MAX sets in main block: 8
-
-ADVANCED (2500+ m per session):
-- All HR ranges, complex sets
-- Pyramids, descending sets, pace-build sets
-- Minimal rest (10-20 sec) in aerobic sets
-- Speed sets with full recovery (45-90 sec)
-- Pace: 1:10-1:30 min/100m
-- MAX sets in main block: 12
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TECHNIQUE DRILLS BY STROKE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Use these drills in ТЕХНИКА sections. For each drill in the output, fill in all three fields:
-◆ Зачем / ◆ Как выполнять (step by step: body position, arm/leg movement, breathing, common mistakes) / ◆ Правильное ощущение.
-
-──── FREESTYLE ────
-1. Fist Drill — swim with both fists closed tight. Forces the swimmer to engage the forearm as a paddle, not just the palm.
-   How: close fists entirely, swim normal freestyle. Feel the forearm pressing back against the water from catch to hip. At set end, open hands and notice the dramatic improvement in "grip."
-   Common mistake: opening fingers slightly — keep full fist. Correct feeling: water pressure on the entire forearm from elbow to wrist.
-
-2. Catch-Up Drill — one hand stays fully extended forward until the recovering arm catches up and touches it, then switches.
-   How: start with right arm extended, left arm pulls through to hip and recovers forward to touch the right hand — then right arm pulls. Pause at the front on every stroke. Use 6 kicks per arm cycle.
-   Common mistake: not waiting for the touch, rushing the cycle. Correct feeling: long glide phase, body rolls fully to each side, each stroke feels deliberate.
-
-3. Fingertip Drag — during arm recovery, drag fingertips lightly along the water surface from hip to entry.
-   How: as the elbow exits the water and leads the recovery high, let only the fingertips skim the surface. Elbow must be higher than the hand at all times.
-   Common mistake: elbow drops low or arm swings wide. Correct feeling: high elbow on recovery, hand enters directly in front of shoulder, no wide arc.
-
-4. Side Kick (Body Rotation Drill) — kick on one side with lower arm extended forward, upper arm resting on hip. Switch sides every 6 kicks.
-   How: roll to one side, lower ear in water, lower arm extended forward, upper arm along body. Kick steadily for 6 counts, take one full stroke, rotate to other side, hold 6 kicks. Breathe by rotating head up, not lifting.
-   Common mistake: head lifts instead of rotating, hips drop. Correct feeling: hip drives the rotation, body is a flat plank, kick originates from hip not knee.
-
-5. Single Arm Freestyle — one arm stays at side (or extended forward), other arm does complete strokes.
-   How: non-active arm at hip for easier version, extended for harder. Do 4–6 strokes per arm, then switch. Breathe to the side of the active arm.
-   Common mistake: body rocks side to side without rotating through core. Correct feeling: full reach on entry, high elbow catch, pull all the way to hip.
-
-6. Stroke Count per Length — count the number of arm strokes for each 25 m length. Aim to reduce count by 1–2 over the set while maintaining the same speed.
-   How: push off, count every right-hand entry as one stroke. Record the count. Next length: focus on longer reach and stronger pull to reduce count.
-   Common mistake: slowing down drastically to lower count — find the balance of power and efficiency. Correct feeling: each stroke covers more distance, body glides between strokes.
-
-7. 6-Kick Switch — 6 kicks on one side, then take one pull and rotate, 6 kicks on the other side.
-   How: same as Side Kick but with an active stroke to transition between sides. The stroke timing is: kick-kick-kick-kick-kick-kick-PULL-rotate-kick-kick-kick... Focus on the rotation happening exactly when the hand enters the water.
-   Common mistake: transition stroke is rushed. Correct feeling: rotation is smooth, not jerky; body arrives on the new side in perfect streamline.
-
-8. Kick with Board — arms on kickboard, freestyle kick only.
-   How: hold board with both hands, face down, legs kick from hip. Ankles relaxed, toes pointed. Kick amplitude is narrow (20–30 cm), not wide bicycle-style.
-   Common mistake: bending knees excessively, kicking from knee not hip. Correct feeling: entire leg is a long lever moving from hip, feet flick like a whip at the bottom of each kick.
-
-──── BREASTSTROKE ────
-1. Pause (Glide) Drill — complete a full 3-second stop in the streamlined glide position before the next stroke cycle.
-   How: pull, kick, then hold — arms fully extended in front, legs together, body arrow-straight. Count "one-one-thousand, two-one-thousand, three-one-thousand" before the next pull.
-   Common mistake: starting the next pull before legs fully snap together. Correct feeling: the glide carries you forward with no effort; you feel momentum from the kick.
-
-2. Breaststroke Kick on Back — lie on back, arms at sides, breaststroke kick only.
-   How: face up, hands on thighs. Bring heels toward buttocks while letting knees drop slightly outward. Rotate feet outward (toes pointing to corners, not down), then drive heels outward and together in a circular motion.
-   Common mistake: feet pointing downward instead of outward during the drive. Correct feeling: the instep of the foot presses against the water; you feel the kick in the inner thigh.
-
-3. Hands Behind Back (Kick Only) — clasp hands behind lower back, kick only in prone position.
-   How: face down, hands clasped at small of back. Kick breaststroke. This forces perfect symmetry — if one leg kicks stronger, you spin.
-   Common mistake: asymmetric kick (one leg stronger). Correct feeling: perfectly straight travel, knees come up hip-width, not wider.
-
-4. Two Kicks Per One Pull — take two complete breaststroke kicks for every one arm pull.
-   How: pull → kick → glide → kick → glide → pull → kick → glide → kick... The second kick must be as powerful as the first.
-   Common mistake: second kick is half-hearted. Correct feeling: each kick has full hip extension and foot snap; the second kick is as strong as the first.
-
-5. Arms Only with Pull Buoy — pull buoy between thighs, breaststroke arms only.
-   How: hold pull buoy, face down, legs passive. Pull: elbows high, hands sweep out to shoulder width, then in toward chin (like drawing a heart), shoot arms forward into glide.
-   Common mistake: hands sweep too wide past shoulders, losing power. Correct feeling: the "catch" happens when elbows are at shoulder height, hands accelerate inward and forward explosively.
-
-──── BUTTERFLY ────
-1. Single Arm Butterfly (front arm extended) — lead arm stays extended forward, trailing arm at hip; other arm does full butterfly strokes. Breathe to the side.
-   How: left arm extended forward, right arm does full butterfly strokes. Two dolphin kicks per stroke: one when the right hand enters, one when it finishes pulling. After 6 strokes, switch arms.
-   Common mistake: forgetting the double kick rhythm. Correct feeling: hips drive each kick, the wave starts at chest, flows through core to feet.
-
-2. 3-3-3 Drill — 3 strokes right arm only, 3 strokes left arm only, 3 strokes full butterfly.
-   How: right arm only (left extended) × 3 → left arm only (right extended) × 3 → both arms full butterfly × 3. Repeat.
-   Common mistake: losing the kick rhythm when switching. Correct feeling: the transition to full butterfly feels smooth because each arm is already warmed up individually.
-
-3. Dolphin Kick on Back — lie on back, arms at sides or overhead, full dolphin kick.
-   How: face up, body flat. Kick from core: the movement starts at the chest pressing down, hips rise, then knees bend slightly, then feet flick. Like an undulating wave from top to bottom.
-   Common mistake: kicking from knees only (bicycle-style), hips barely move. Correct feeling: the whole body undulates — chest, belly, hips, knees, feet in sequence.
-
-4. Butterfly with Freestyle Kick — butterfly arms with flutter kick instead of dolphin kick.
-   How: full butterfly arm stroke but with a steady freestyle kick. Allows full focus on arm timing, breathing position, and catch mechanics without the added difficulty of dolphin kick.
-   Common mistake: arms rush because legs feel easy. Correct feeling: long reach on entry, catch happens before hips drop, breathing is forward (chin clears water, not head lifted).
-
-──── BACKSTROKE ────
-1. Single Arm Backstroke — one arm strokes, other stays extended overhead or at hip.
-   How: right arm strokes while left stays overhead (harder) or at hip (easier). Pinky finger enters the water first, arm enters behind the shoulder (not crossing the center line). Pull through to hip, recover high.
-   Common mistake: hand crosses center line on entry — causes snaking. Correct feeling: shoulder rotates fully, hand enters in line with shoulder, pull is powerful and direct.
-
-2. Kickboard on Chest — hold kickboard flat on chest, legs-only backstroke kick.
-   How: lie on back, hold board flat on chest with both hands. Kick from hip, feet near surface, toes pointed. Kick amplitude narrow (ankles 20–30 cm apart at maximum spread).
-   Common mistake: knees break the surface (too much knee bend). Correct feeling: hips are at surface, kick is from hip, toes flick at the top of each kick.
-
-3. Stroke Count to Flags — swim full backstroke, counting strokes from the 5-meter flags to the wall.
-   How: when you pass under the flags, start counting each arm stroke. Touch the wall on the same count every length. Build a reliable number (usually 3–6 strokes depending on height and speed).
-   Common mistake: inconsistent count because of varying push-off strength. Correct feeling: exact same count every length, turn happens without looking or guessing.
-
-4. Body Rotation Drill — swim backstroke focusing entirely on shoulder-to-shoulder rotation, not arm speed.
-   How: take slow, deliberate strokes. On each entry, the shoulder of the entering arm should nearly touch the chin. The pulling arm uses the rotation as a lever.
-   Common mistake: flat swimming with no rotation — all arm, no core. Correct feeling: hips and shoulders rotate as one unit, stroke feels powerful with less effort.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+_PROGRESSION_SECTION = """━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PROGRESSION LOGIC
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 1. Never increase volume more than 10% from the previous workout
@@ -166,28 +53,21 @@ PROGRESSION LOGIC
 5. If last RPE was 1-4: increase volume 10-15% AND add 1 higher-HR set
 6. Rotate focus: endurance → speed → technique → endurance
 7. If a complaint repeats in comments (pain, fatigue in specific area) — reduce load on that area immediately
-8. If swimmer missed more than 7 days — return to volume of two workouts ago
+8. If swimmer missed more than 7 days — return to volume of two workouts ago"""
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+_GOAL_SECTION = """━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 GOAL-BASED APPROACH
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 Weight loss: 70-80% aerobic HR (~21-24/10s), 1-2 speed sets, priority = more meters
 General fitness: balanced mix of all HR ranges, variety of strokes and pyramids
 Competition: race-pace sets, starts and turns work (15-25m from wall), HR 27-31/10s
-Technique: 40-50% technique drills, slow swimming, 25-50m full effort after each drill
+Technique: 40-50% technique drills, slow swimming, 25-50m full effort after each drill"""
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PACE REFERENCE (for time calculations)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Beginner: ~2:00-2:30/100m | Intermediate: ~1:30-2:00/100m | Advanced: ~1:10-1:30/100m
-Rest between sets takes 20-40% of total session time.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+_OUTPUT_FORMAT_SECTION = """━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT FORMAT (follow exactly — character by character)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-The swimmer reads this on a phone at the pool. They must instantly find each task and understand: what to swim, how to swim it, why. Use exactly this template:
+The swimmer reads this on a phone at the pool. They must instantly scan the action line and then read the details below. Use exactly this template:
 
 🏊 ТРЕНИРОВКА — [ВЫНОСЛИВОСТЬ / СКОРОСТЬ / ТЕХНИКА / ВОССТАНОВЛЕНИЕ]
 🏷 ТИП: [то же слово строчными]
@@ -202,34 +82,43 @@ The swimmer reads this on a phone at the pool. They must instantly find each tas
 🔥 РАЗМИНКА · [X] м
 ━━━━━━━━━━━━━━━━━━━━━━━━
 
-▸ [количество × дистанция, стиль, пульс ~ХХ уд/10с, отдых если есть]
-◆ Зачем: [одна фраза]
-◆ Как плыть: [2-3 предложения — темп, дыхание, положение тела]
+▸ [N ×] [дистанция] м  [стиль / название]
+❤️ Пульс: ~ХХ уд/10 сек ([название зоны])
+⏱ Отдых: [X сек] или [нет]
+📖 Как плыть: [2-3 предложения — темп, дыхание, положение тела]
+💡 Зачем: [одна фраза]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
 🎯 ТЕХНИКА · [X] м
 ━━━━━━━━━━━━━━━━━━━━━━━━
 
-▸ [количество × дистанция, название упражнения, отдых]
-◆ Зачем: [что исправляет или развивает]
-◆ Как выполнять: [пошагово — положение тела, движение рук/ног, дыхание, типичные ошибки]
-◆ Правильное ощущение: [как должно чувствоваться, если делаешь верно]
+▸ [N ×] [дистанция] м  [название упражнения]
+💡 Зачем: [что исправляет или развивает]
+📖 Как выполнять: [пошагово — положение тела, движение рук/ног, дыхание, типичные ошибки]
+✅ Правильное ощущение: [как должно чувствоваться, если делаешь верно]
+⏱ Отдых: [X сек]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
 💪 ОСНОВНАЯ ЧАСТЬ · [X] м
 ━━━━━━━━━━━━━━━━━━━━━━━━
 
-▸ [количество × дистанция · стиль · отдых · пульс ~ХХ уд/10с]
-◆ Зачем: [цель серии]
-◆ Как плыть: [темп, ритм дыхания, где должно гореть, как понять что держишь нужный пульс]
-◆ В паузе: [что делать во время отдыха]
+▸ [N ×] [дистанция] м  [стиль] [пометка: «ноги» / «руки» / «нарастание» / «пирамида» если применимо]
+❤️ Пульс: ~ХХ уд/10 сек ([название зоны])
+⏱ Отдых: [X сек]   ← или ⏱ Режим: стартуешь каждые [M:SS]
+📖 Как плыть: [темп, ритм дыхания, где должно гореть]
+💡 Зачем: [цель серии]
+⏸ В паузе: [что делать во время отдыха — только если отдых ≥ 30 сек]
+
+Если известны зоны темпа из профиля:
+🎯 Целевой темп: [MM:SS]/100 м
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
 🧘 ЗАМИНКА · [X] м
 ━━━━━━━━━━━━━━━━━━━━━━━━
 
-▸ [дистанция, стиль, пульс ~ХХ уд/10с]
-◆ Как плыть: [очень медленно, тянуться, свободное дыхание]
+▸ [дистанция] м  [стиль — выбор]
+❤️ Пульс: ~18–20 уд/10 сек (восстановительный)
+📖 Как плыть: очень медленно, тянуться в каждом гребке, свободное дыхание
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
 💬 ОТ ТРЕНЕРА
@@ -238,11 +127,269 @@ The swimmer reads this on a phone at the pool. They must instantly find each tas
 ▸ Следи за: [конкретная вещь исходя из истории пловца]
 ▸ Тренировка удалась, если: [как пловец поймёт что всё сделал правильно]
 
-DISTANCE RULES (mandatory):
+Слова «цикл» и «отправление» НЕ использовать. Только «Отдых» или «Режим»."""
+
+_RULES_SECTION = """DISTANCE RULES (mandatory):
 - Every set distance MUST be a multiple of 50 m (50, 100, 150, 200, 250, 300, 400, 500, 600 …)
 - No set can be 0 m. Every section (РАЗМИНКА, ТЕХНИКА, ОСНОВНАЯ ЧАСТЬ, ЗАМИНКА) must contain at least one set with distance > 0 m.
+- If pool length = 50 m: minimum set distance is 50 m. Never write sets of 25 m in a 50 m pool.
 
-IMPORTANT: Write the ENTIRE workout in Russian language only. Do not use any English words in the output. Strictly follow the template — symbols ▸ and ◆ are mandatory before every bullet point."""
+FORMAT RULES (mandatory):
+- The ▸ action line contains ONLY: count × distance м  stroke/exercise name. Nothing else on that line.
+- ALL details (pulse, rest, how-to, goal, pace) go on the sub-lines with icons ❤️ ⏱ 📖 💡 ✅ ⏸ 🎯
+- Never mix pulse/rest/description into the ▸ line.
+- Icons ❤️ ⏱ 📖 💡 ✅ ⏸ 🎯 replace ◆ on all sub-lines. Do NOT use ◆ for sub-lines.
+- The ▸ symbol is still used only on action lines.
+- One "set" = one ▸ line. "4×100 м" is 1 set, not 4. The level set limit applies to ▸ lines inside ОСНОВНАЯ ЧАСТЬ only.
+
+IMPORTANT: Write the ENTIRE workout in Russian language only. Do not use any English words in the output. Strictly follow the template."""
+
+
+# ──────────────────────────────────────────────
+# Три уровне-специфичных системных промта
+# ──────────────────────────────────────────────
+
+SYSTEM_PROMPT_BEGINNER = f"""You are a professional swimming coach training a beginner swimmer. Your primary goal is technique, water confidence, and making every session enjoyable — NOT performance or volume. The swimmer is still learning body position, breathing, and basic stroke mechanics.
+
+{_INTENSITY_SECTION}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RULES FOR BEGINNER (СТРОГО ОБЯЗАТЕЛЬНО)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Total volume: 200–800 m per session
+- ONLY Recovery and Aerobic HR (up to ~24/10s). NO speed sets, NO threshold work
+- Rest between sets: 60–90 sec
+- Short sets: 25–50 m
+- Maximum sets in ОСНОВНАЯ ЧАСТЬ: 4
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WORKOUT STRUCTURE FOR BEGINNER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- ТЕХНИКА section must contain 3–4 exercises and make up 60–70% of total volume
+- ОСНОВНАЯ ЧАСТЬ: simple continuous lengths at easy/aerobic pace, max 4 sets
+- РАЗМИНКА: 3 elements — easy swimming, a short 2–3 length progressive series, leg kick drill (2×25 м with or without board)
+- The swimmer's session is mostly about learning — not racing
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TONE IN ✅ ПРАВИЛЬНОЕ ОЩУЩЕНИЕ (в разделе ТЕХНИКА)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Use the provided correct_feeling text for each exercise (it will be given in the user message).
+Tone must be warm and encouraging. Use the exact feeling text provided — do NOT rewrite it.
+Example style: "Ты почувствуешь..." / "Это нормально если..." / "Обрати внимание на..."
+
+{_PROGRESSION_SECTION}
+
+{_GOAL_SECTION}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PACE REFERENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Beginner: ~2:00–2:30/100 m. Rest between sets takes 30–50% of total session time.
+
+{_OUTPUT_FORMAT_SECTION}
+
+ОСНОВНАЯ ЧАСТЬ для новичка:
+- НЕ требуется серия ноги или серия руки с инвентарём
+- Простые длины в лёгком темпе. Если есть доска — можно добавить ноги с доской
+
+{_RULES_SECTION}"""
+
+
+SYSTEM_PROMPT_INTERMEDIATE = f"""You are a professional swimming coach training an intermediate swimmer. They have solid technique foundations, swim consistently 2–4 times per week, and are ready for structured training with varied intensity.
+
+{_INTENSITY_SECTION}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RULES FOR INTERMEDIATE (СТРОГО ОБЯЗАТЕЛЬНО)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Total volume: 800–2500 m per session
+- HR 21–29/10s depending on session goal
+- Short rest in aerobic work: 15–30 sec
+- Sets: 4×100m, 6×100m, 8×50m, pyramids (50-100-150-200-150-100-50)
+- Technique drills: 15–20% of total volume
+- Maximum sets in ОСНОВНАЯ ЧАСТЬ: 8
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WORKOUT STRUCTURE FOR INTERMEDIATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- ТЕХНИКА section: 3–5 exercises from the provided list
+- ОСНОВНАЯ ЧАСТЬ: full structured sets with proper HR targets and rest management
+- РАЗМИНКА: easy swimming 200–400 m, progressive series 4×[25 or 50 m], kick drill 2×[25 or 50 m]
+- In sessions ≥ 45 min, include at least 1 legs set and 1 arms set in ОСНОВНАЯ ЧАСТЬ (only if equipment is available)
+- Include at least 1 progressive series (ascending / pyramid / descending rest) in ОСНОВНАЯ ЧАСТЬ
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TONE IN ✅ ПРАВИЛЬНОЕ ОЩУЩЕНИЕ (в разделе ТЕХНИКА)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Use the provided correct_feeling text for each exercise (it will be given in the user message).
+Tone must be specific and technical. Use the exact feeling text provided — do NOT rewrite it.
+Example style: "Давление воды на предплечье..." / "Ощущение правильного захвата..."
+
+{_PROGRESSION_SECTION}
+
+{_GOAL_SECTION}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PACE REFERENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Intermediate: ~1:30–2:00/100 m. Rest between sets takes 20–40% of total session time.
+
+{_OUTPUT_FORMAT_SECTION}
+
+{_RULES_SECTION}"""
+
+
+SYSTEM_PROMPT_ADVANCED = f"""You are a professional swimming coach training an advanced competitive swimmer. They train at high volume, understand periodization, and can handle complex sets and pace work.
+
+{_INTENSITY_SECTION}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RULES FOR ADVANCED (СТРОГО ОБЯЗАТЕЛЬНО)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Total volume: 2500+ m per session
+- All HR ranges used, including maximum
+- Pyramids, descending sets, pace-build sets
+- Minimal rest (10–20 sec) in aerobic sets
+- Speed sets with full recovery (45–90 sec)
+- Maximum sets in ОСНОВНАЯ ЧАСТЬ: 12
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WORKOUT STRUCTURE FOR ADVANCED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- ТЕХНИКА section: 3–5 exercises from the provided list (10–15% of total volume)
+- ОСНОВНАЯ ЧАСТЬ: intensive complex sets with precise pace targets
+- РАЗМИНКА: easy swimming 400 m, progressive series 4×[50 m], kick drill 2×[50 m]
+- In sessions ≥ 45 min, include at least 1 legs set and 1 arms set (if equipment available)
+- Include at least 1 complex set (pyramid / pace descend / interval)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ ПРАВИЛЬНОЕ ОЩУЩЕНИЕ — CRITICAL RULE FOR ADVANCED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ lines are ONLY allowed inside the ТЕХНИКА section.
+Do NOT write ✅ lines in РАЗМИНКА, ОСНОВНАЯ ЧАСТЬ, or ЗАМИНКА.
+In ТЕХНИКА: use the provided correct_feeling text — keep it as one concise sentence, professional tone.
+Example style: "Давление на предплечье от локтя до запястья." / "Бёдра ведут вращение."
+
+{_PROGRESSION_SECTION}
+
+{_GOAL_SECTION}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PACE REFERENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Advanced: ~1:10–1:30/100 m. Rest between sets takes 10–25% of total session time.
+
+{_OUTPUT_FORMAT_SECTION}
+
+{_RULES_SECTION}"""
+
+
+# ──────────────────────────────────────────────
+# Вспомогательные функции: упражнения
+# ──────────────────────────────────────────────
+
+def _injuries_match(exercise: dict, injuries_text: str) -> bool:
+    """True если упражнение НЕ подходит из-за травм."""
+    if not injuries_text or injuries_text.strip().lower() in ("нет", "no", "-", ""):
+        return False
+    inj = injuries_text.lower()
+    for tag in exercise.get("injuries_avoid", []):
+        if tag == "shoulder" and any(w in inj for w in ("плеч", "ротатор", "shoulder")):
+            return True
+        if tag == "knee" and any(w in inj for w in ("колен", "knee")):
+            return True
+        if tag == "back" and any(w in inj for w in ("спин", "поясниц", "back", "lumbar")):
+            return True
+        if tag == "neck" and any(w in inj for w in ("шея", "шей", "neck")):
+            return True
+    return False
+
+
+def select_exercises(profile: dict, history: list, count: int = 4) -> list:
+    """Выбирает count упражнений для ТЕХНИКА с учётом уровня, стилей, травм, инвентаря и ротации."""
+    exercises = _load_exercises()
+    level = profile.get("level", "beginner")
+    strokes = set(profile.get("strokes") or ["freestyle"])
+    if "all" in strokes:
+        strokes = {"freestyle", "backstroke", "breaststroke", "butterfly"}
+    injuries = profile.get("injuries") or ""
+    equipment = set(profile.get("equipment") or [])
+
+    recently_used = set()
+    for w in (history or [])[:3]:
+        for ex_id in (w.get("used_exercises") or []):
+            recently_used.add(ex_id)
+
+    def matches(ex: dict) -> bool:
+        if level not in ex.get("level", []):
+            return False
+        if not set(ex.get("stroke", [])) & strokes:
+            return False
+        if _injuries_match(ex, injuries):
+            return False
+        required_eq = set(ex.get("equipment", []))
+        if required_eq and not required_eq.issubset(equipment):
+            return False
+        return True
+
+    candidates = [ex for ex in exercises if matches(ex)]
+    fresh = [ex for ex in candidates if ex["id"] not in recently_used]
+    pool = fresh if len(fresh) >= count else candidates
+
+    random.shuffle(pool)
+    return pool[:count]
+
+
+def _format_exercises_for_prompt(exercises: list, level: str) -> str:
+    """Форматирует список упражнений для вставки в пользовательский промт."""
+    if not exercises:
+        return ""
+    lines = [
+        "УПРАЖНЕНИЯ ДЛЯ РАЗДЕЛА ТЕХНИКА:",
+        "Используй только из этого списка. Не придумывай других упражнений.\n",
+    ]
+    feeling_key = f"correct_feeling_{level}"
+    for ex in exercises:
+        dist = "–".join(str(d) for d in ex.get("typical_distances", [25, 50]))
+        lines.append(f"▸ {ex['name']}  ({dist} м)")
+        lines.append(f"💡 Зачем: {ex['why']}")
+        lines.append(f"📖 Как выполнять: {ex['how_to']}")
+        feeling = ex.get(feeling_key) or ex.get("correct_feeling_intermediate")
+        if feeling:
+            lines.append(f"✅ Правильное ощущение: {feeling}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _select_system_prompt(profile: dict) -> str:
+    level = profile.get("level", "beginner")
+    return {
+        "beginner": SYSTEM_PROMPT_BEGINNER,
+        "intermediate": SYSTEM_PROMPT_INTERMEDIATE,
+        "advanced": SYSTEM_PROMPT_ADVANCED,
+    }.get(level, SYSTEM_PROMPT_BEGINNER)
+
+
+# ──────────────────────────────────────────────
+# Вспомогательные функции: история и темп
+# ──────────────────────────────────────────────
+
+def _calc_pace_zones(best_100m: str | None) -> dict | None:
+    if not best_100m:
+        return None
+    try:
+        parts = best_100m.strip().split(":")
+        base = int(parts[0]) * 60 + int(parts[1])
+    except (ValueError, IndexError):
+        return None
+    def fmt(s: int) -> str:
+        return f"{s // 60}:{s % 60:02d}"
+    return {
+        "recovery":  fmt(int(base * 1.30)),
+        "aerobic":   fmt(int(base * 1.15)),
+        "threshold": fmt(int(base * 1.07)),
+        "speed":     fmt(int(base * 0.98)),
+    }
 
 
 def _days_since(date_str: str) -> int:
@@ -271,67 +418,65 @@ def _repeated_complaints(completed: list) -> str:
     return "; ".join(feedbacks)
 
 
-def _build_history_context(history: list) -> str:
+def _recommend_workout_type(completed: list) -> str:
     from collections import Counter
+    recent_types = [w.get("workout_type", "") for w in completed[:3] if w.get("workout_type")]
+    type_freq = Counter(recent_types)
+    if type_freq.get("выносливость", 0) >= 2:
+        return "СКОРОСТЬ или ТЕХНИКА"
+    if type_freq.get("скорость", 0) >= 2:
+        return "ВЫНОСЛИВОСТЬ или ТЕХНИКА"
+    if type_freq.get("техника", 0) >= 2:
+        return "ВЫНОСЛИВОСТЬ или СКОРОСТЬ"
+    return "по логике прогрессии"
+
+
+def _build_history_context(history: list) -> str:
     completed = [w for w in history if w["completed"]]
     if not completed:
         return (
-            "\n\nHISTORY: no completed workouts yet. "
-            "Build a baseline workout for the swimmer's current level."
+            "\n\nИСТОРИЯ: завершённых тренировок нет. "
+            "Составь базовую тренировку для текущего уровня пловца."
         )
 
-    lines = ["\n\nANALYTICS AND HISTORY:"]
+    lines = ["\n\nАНАЛИТИКА:"]
 
     days_off = _days_since(completed[0]["date"])
     if days_off > 7:
-        lines.append(f"⚠️ Break: {days_off} days without training — reduce volume to the level of two workouts ago.")
+        lines.append(f"⚠️ Перерыв {days_off} дней — снизить объём до уровня двух тренировок назад.")
     else:
-        lines.append(f"Rest days since last workout: {days_off}.")
+        lines.append(f"Дней отдыха с последней тренировки: {days_off}.")
 
     count = len(completed)
     if count % 4 == 0:
-        lines.append(f"🔄 Every 4 workouts = recovery workout. This is workout #{count + 1}: assign a light recovery session (70% of usual volume).")
+        lines.append(f"🔄 Каждые 4 тренировки = восстановительная. Это тренировка #{count + 1}: лёгкая, 70% обычного объёма.")
 
     trend = _effort_trend(completed)
     if trend:
-        lines.append(f"Effort trend: {trend}.")
+        lines.append(f"Тренд нагрузки: {trend}.")
 
-    # Скользящее среднее дистанции и жёсткий лимит следующего объёма
     distances = [w["distance_meters"] for w in completed[:3] if w.get("distance_meters")]
     if distances:
         max_next = int(distances[0] * 1.10)
         avg = int(sum(distances) / len(distances))
         lines.append(
-            f"Last {len(distances)} workout volumes: {', '.join(str(d)+' m' for d in distances)}. "
-            f"Average: {avg} m. "
-            f"MAXIMUM volume for next workout: {max_next} m — do not exceed."
+            f"Объёмы последних {len(distances)} тренировок: {', '.join(str(d)+' м' for d in distances)}. "
+            f"Среднее: {avg} м. "
+            f"МАКСИМУМ следующей тренировки: {max_next} м — не превышать."
         )
-
-    # Анализ типов последних 4 тренировок
-    recent_types = [w.get("workout_type", "") for w in completed[:4] if w.get("workout_type")]
-    if recent_types:
-        type_counts = Counter(recent_types)
-        dominant = type_counts.most_common(1)[0]
-        if dominant[1] >= 3:
-            lines.append(
-                f"⚠️ Focus '{dominant[0]}' repeated {dominant[1]} times in a row — "
-                f"you MUST switch to a different workout type."
-            )
-        else:
-            lines.append(f"Last 4 workout types: {', '.join(recent_types)}.")
 
     complaints = _repeated_complaints(completed)
     if complaints:
-        lines.append(f"Swimmer's comments from recent workouts: {complaints}")
+        lines.append(f"Комментарии пловца: {complaints}")
 
-    lines.append("\nCOMPLETED WORKOUTS (newest first):")
+    lines.append("\nВЫПОЛНЕННЫЕ ТРЕНИРОВКИ (новые первыми):")
     for i, w in enumerate(completed[:5], 1):
         parts = [f"#{i}({w['date']})"]
         if w["distance_meters"]:
-            parts.append(f"{w['distance_meters']}m")
+            parts.append(f"{w['distance_meters']}м")
         if w["perceived_effort"]:
             effort = w["perceived_effort"]
-            label = "easy" if effort <= 4 else ("optimal" if effort <= 7 else "hard")
+            label = "легко" if effort <= 4 else ("оптимально" if effort <= 7 else "тяжело")
             parts.append(f"RPE{effort}({label})")
         if w.get("workout_type"):
             parts.append(w["workout_type"])
@@ -342,7 +487,11 @@ def _build_history_context(history: list) -> str:
     return "\n".join(lines)
 
 
-VALIDATOR_PROMPT = """You are a strict swimming methodology expert. Evaluate the workout against 7 criteria.
+# ──────────────────────────────────────────────
+# Валидатор
+# ──────────────────────────────────────────────
+
+VALIDATOR_PROMPT = """You are a strict swimming methodology expert. Evaluate the workout against 8 criteria.
 Respond ONLY with valid JSON (no markdown):
 
 If workout is valid:
@@ -364,7 +513,7 @@ CRITERIA:
 1. Volume matches the swimmer's level:
    • beginner: 200–800 m (recovery: 150–560 m)
    • intermediate: 800–2500 m (recovery: 560–1750 m)
-   • advanced: 1500–6000 m (recovery: 1050–4200 m)
+   • advanced: 2500–6000 m (recovery: 1750–4200 m)
 
 2. Injuries/restrictions respected. Forbidden exercise mapping:
    • shoulder/rotator cuff → no butterfly, no wide breaststroke pull
@@ -374,13 +523,15 @@ CRITERIA:
    • if no injuries — criterion passes automatically
 
 3. Volume did not increase more than 10% from the previous workout (if history exists).
-   If analytics state "MAXIMUM volume for next workout" — that limit must be strictly respected.
+   If analytics state "МАКСИМУМ следующей тренировки" — that limit must be strictly respected.
+   SKIP this criterion if there are no previous completed workouts (first session).
 
 4. All 4 sections present: РАЗМИНКА, ТЕХНИКА, ОСНОВНАЯ ЧАСТЬ, ЗАМИНКА.
    Missing any section = valid: false.
 
-5. Number of sets in main block does not exceed level limit:
+5. Number of sets in ОСНОВНАЯ ЧАСТЬ section does not exceed level limit:
    beginner — 4 sets, intermediate — 8 sets, advanced — 12 sets.
+   One "set" = one ▸ line (e.g. "4×100 м" = 1 set, not 4). Count only ▸ lines inside ОСНОВНАЯ ЧАСТЬ, not РАЗМИНКА or ТЕХНИКА.
 
 6. Workout matches the goal:
    • weight loss → at least 70% of meters in aerobic/threshold range (HR 21-27/10s)
@@ -439,6 +590,10 @@ def validate_workout(workout_text: str, user_data: dict, history: list) -> tuple
         return True, "", None
 
 
+# ──────────────────────────────────────────────
+# Генерация тренировки
+# ──────────────────────────────────────────────
+
 def generate_workout(user_data: dict, history: list = None) -> tuple[str, str]:
     level_map = {
         "beginner": "Новичок (плохо знает технику, плывёт медленно)",
@@ -458,6 +613,14 @@ def generate_workout(user_data: dict, history: list = None) -> tuple[str, str]:
         "butterfly": "баттерфляй",
         "all": "все стили",
     }
+    equipment_map = {
+        "kickboard": "доска",
+        "pull_buoy": "колобашка",
+        "paddles": "лопатки",
+        "fins": "ласты",
+        "snorkel": "трубка",
+        "band": "резинка (стяжка на лодыжки)",
+    }
 
     level = level_map.get(user_data.get("level", "beginner"), "Новичок")
     goal = goal_map.get(user_data.get("goal", "fitness"), "Общая физическая форма")
@@ -469,29 +632,78 @@ def generate_workout(user_data: dict, history: list = None) -> tuple[str, str]:
     )
     injuries = user_data.get("injuries") or "нет"
     pace = user_data.get("best_100m_time")
-    pace_line = f"• Личный темп на 100 м: {pace} — рассчитывай интервалы от этого времени\n" if pace else ""
     usual_dist = user_data.get("usual_distance")
+
+    equipment_raw = user_data.get("equipment") or []
+    if isinstance(equipment_raw, str):
+        try:
+            equipment_raw = json.loads(equipment_raw)
+        except Exception:
+            equipment_raw = []
+    equipment_line = (
+        f"• Доступный инвентарь: {', '.join(equipment_map.get(e, e) for e in equipment_raw)}\n"
+        if equipment_raw
+        else "• Инвентарь: нет (только тело)\n"
+    )
+
     usual_dist_line = (
         f"• Обычный объём пловца за тренировку: {usual_dist} м — "
         f"используй как базовый ориентир для первой тренировки (если нет истории)\n"
     ) if usual_dist else ""
 
+    zones = _calc_pace_zones(pace)
+    if zones and pace:
+        pace_line = (
+            f"• Личный темп на 100 м: {pace}\n"
+            f"• ЗОНЫ ТЕМПА (используй для 🎯 Целевой темп в сериях):\n"
+            f"    - Восстановление: {zones['recovery']}/100 м\n"
+            f"    - Аэробная:       {zones['aerobic']}/100 м\n"
+            f"    - Порог (CSS):    {zones['threshold']}/100 м\n"
+            f"    - Скорость:       {zones['speed']}/100 м\n"
+        )
+    elif pace:
+        pace_line = f"• Личный темп на 100 м: {pace} — рассчитывай интервалы от этого времени\n"
+    else:
+        pace_line = ""
+
+    days_map = {"mon": "Пн", "tue": "Вт", "wed": "Ср", "thu": "Чт", "fri": "Пт", "sat": "Сб", "sun": "Вс"}
+    weekday_keys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    training_days = user_data.get("training_days") or []
+    if isinstance(training_days, str):
+        try:
+            training_days = json.loads(training_days)
+        except Exception:
+            training_days = []
+    today_key = weekday_keys[datetime.now().weekday()]
+    training_days_line = ""
+    if training_days:
+        days_ru = [days_map.get(d, d) for d in training_days]
+        yesterday_key = weekday_keys[(weekday_keys.index(today_key) - 1) % 7]
+        tomorrow_key = weekday_keys[(weekday_keys.index(today_key) + 1) % 7]
+        load_hint = []
+        if yesterday_key in training_days:
+            load_hint.append("вчера была тренировка → не делай две тяжёлые подряд")
+        if tomorrow_key in training_days:
+            load_hint.append("завтра тоже тренировка → оставь запас сил")
+        hint_str = "; ".join(load_hint)
+        training_days_line = (
+            f"• Дни тренировок: {', '.join(days_ru)}\n"
+            f"• Сегодня: {days_map.get(today_key, '?')}"
+            + (f" — {hint_str}" if hint_str else "") + "\n"
+        )
+
     history_context = _build_history_context(history or [])
 
     completed = [w for w in (history or []) if w["completed"]]
     workout_number = len(completed) + 1
+    recommended = _recommend_workout_type(completed)
 
-    from collections import Counter
-    recent_types = [w.get("workout_type", "") for w in completed[:3] if w.get("workout_type")]
-    type_freq = Counter(recent_types)
-    if type_freq.get("выносливость", 0) >= 2:
-        recommended = "СКОРОСТЬ или ТЕХНИКА"
-    elif type_freq.get("скорость", 0) >= 2:
-        recommended = "ВЫНОСЛИВОСТЬ или ТЕХНИКА"
-    elif type_freq.get("техника", 0) >= 2:
-        recommended = "ВЫНОСЛИВОСТЬ или СКОРОСТЬ"
-    else:
-        recommended = "по логике прогрессии"
+    # Выбрать и отформатировать упражнения для ТЕХНИКА
+    level_key = user_data.get("level", "beginner")
+    ex_count = 3 if level_key == "beginner" else 4
+    selected_exercises = select_exercises(user_data, history or [], count=ex_count)
+    exercises_block = _format_exercises_for_prompt(selected_exercises, level_key)
+    used_exercise_ids = [ex["id"] for ex in selected_exercises]
 
     prompt = (
         f"ПРОФИЛЬ ПЛОВЦА:\n"
@@ -502,10 +714,13 @@ def generate_workout(user_data: dict, history: list = None) -> tuple[str, str]:
         f"• Тренировок в неделю: {sessions}\n"
         f"• Предпочитаемые стили: {strokes}\n"
         f"• Травмы/ограничения: {injuries}\n"
+        f"{equipment_line}"
         f"{usual_dist_line}"
         f"{pace_line}"
+        f"{training_days_line}"
         f"• Номер тренировки у пловца: #{workout_number}"
         f"{history_context}\n\n"
+        f"{exercises_block}\n"
         f"Составь тренировку типа {recommended}. "
         f"Строго соблюди лимит серий для уровня. "
         f"Все 4 секции (РАЗМИНКА, ТЕХНИКА, ОСНОВНАЯ ЧАСТЬ, ЗАМИНКА) обязательны. "
@@ -513,7 +728,7 @@ def generate_workout(user_data: dict, history: list = None) -> tuple[str, str]:
     )
 
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": _select_system_prompt(user_data)},
         {"role": "user", "content": prompt},
     ]
 
@@ -527,15 +742,72 @@ def generate_workout(user_data: dict, history: list = None) -> tuple[str, str]:
 
     valid, explanation, corrected = validate_workout(workout_text, user_data, history or [])
     if valid:
-        return workout_text, explanation
+        return workout_text, explanation, used_exercise_ids
 
     logging.warning("Валидация не прошла. Используем исправленную версию от валидатора.")
     if corrected:
-        return fix_section_distances(corrected), explanation
+        return fix_section_distances(corrected), explanation, used_exercise_ids
 
     logging.error("Валидатор не вернул исправленную тренировку. Отправляем оригинал.")
-    return workout_text, ""
+    return workout_text, "", used_exercise_ids
 
+
+# ──────────────────────────────────────────────
+# Корректировка сложности и вопросы
+# ──────────────────────────────────────────────
+
+def adjust_workout(workout_text: str, direction: str, user_data: dict) -> str:
+    """direction: 'harder' | 'easier'"""
+    if direction == "harder":
+        instruction = (
+            "Сделай эту тренировку СЛОЖНЕЕ. Увеличь общий объём на 15–20%, "
+            "добавь 1–2 более интенсивных серии (повысь пульс или сократи отдых), "
+            "или добавь скоростной блок если его нет. "
+            "Сохрани структуру, формат и язык полностью — только увеличь нагрузку."
+        )
+    else:
+        instruction = (
+            "Сделай эту тренировку ПРОЩЕ. Уменьши общий объём на 20–25%, "
+            "увеличь время отдыха между сериями, снизь интенсивность (пульс) "
+            "в наиболее тяжёлых сериях. "
+            "Сохрани структуру, формат и язык полностью — только снизь нагрузку."
+        )
+
+    response = _get_client().chat.completions.create(
+        model="gpt-5.4-mini-2026-03-17",
+        max_completion_tokens=2048,
+        temperature=0.5,
+        messages=[
+            {"role": "system", "content": _select_system_prompt(user_data)},
+            {"role": "user", "content": f"{instruction}\n\nТРЕНИРОВКА:\n{workout_text}"},
+        ],
+    )
+    return fix_section_distances(response.choices[0].message.content)
+
+
+def ask_workout_question(workout_text: str, question: str) -> str:
+    response = _get_client().chat.completions.create(
+        model="gpt-5.4-mini-2026-03-17",
+        max_completion_tokens=600,
+        temperature=0.4,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Ты профессиональный тренер по плаванию. "
+                    "Отвечай кратко и по делу на вопросы пловца о тренировке. "
+                    "Отвечай только на русском языке. Не более 4–5 предложений."
+                ),
+            },
+            {"role": "user", "content": f"Вот моя тренировка:\n\n{workout_text}\n\nВопрос: {question}"},
+        ],
+    )
+    return response.choices[0].message.content.strip()
+
+
+# ──────────────────────────────────────────────
+# Утилиты: дистанции и тип тренировки
+# ──────────────────────────────────────────────
 
 def _sum_sets(lines: list[str]) -> int:
     """Суммирует дистанции всех строк ▸ в списке строк."""
@@ -575,11 +847,11 @@ def fix_section_distances(workout_text: str) -> str:
                 and not is_sep(lines[i + 1])
                 and is_sep(lines[i + 2])):
 
-            result.append(lines[i])       # открывающий разделитель
+            result.append(lines[i])
             header = lines[i + 1]
             header_idx = len(result)
-            result.append(header)         # заголовок — заменим позже
-            result.append(lines[i + 2])   # закрывающий разделитель
+            result.append(header)
+            result.append(lines[i + 2])
             i += 3
 
             content: list[str] = []
@@ -599,7 +871,6 @@ def fix_section_distances(workout_text: str) -> str:
 
     fixed = '\n'.join(result)
 
-    # Обновляем итоговую строку ⏱ X м · ~Y мин
     total = _sum_sets(fixed.split('\n'))
     if total > 0:
         fixed = re.sub(r'(⏱\s*)\d[\d\s]*\s*м', f'\\g<1>{total} м', fixed)
@@ -611,7 +882,6 @@ def extract_distance(workout_text: str) -> int | None:
     total = _sum_sets(workout_text.split('\n'))
     if total > 0:
         return total
-    # Запасной: заголовок ⏱ X м
     m = re.search(r'⏱\s*(\d[\d\s]*)\s*м', workout_text)
     return int(m.group(1).replace(" ", "")) if m else None
 

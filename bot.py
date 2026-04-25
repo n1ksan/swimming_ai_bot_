@@ -2,7 +2,7 @@ import logging
 import re
 from datetime import datetime, timedelta
 
-from telegram import BotCommand, Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import BotCommand, Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -61,6 +61,8 @@ STROKES_LABELS = {
     "butterfly": "Баттерфляй",
     "all": "Все стили",
 }
+_WEBAPP_URL: str = ""
+
 WEEKDAY_SHORT = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 WEEKDAY_FULL = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
 WORKOUT_TYPE_EMOJI = {
@@ -250,6 +252,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             [InlineKeyboardButton("⚡ Использовать сохранённый профиль", callback_data="use_profile")],
             [InlineKeyboardButton("✏️ Изменить профиль", callback_data="change_profile")],
         ]
+        if _WEBAPP_URL:
+            keyboard.append([InlineKeyboardButton("📊 Открыть приложение", web_app=WebAppInfo(url=_WEBAPP_URL))])
         await update.message.reply_text(
             f"👋 С возвращением!\n\n"
             f"Твой профиль:\n"
@@ -1090,6 +1094,11 @@ async def reminder_close_handler(update: Update, context: ContextTypes.DEFAULT_T
 # ── /help ──────────────────────────────────────────────────────────────────
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    keyboard = None
+    if _WEBAPP_URL:
+        keyboard = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("📊 Открыть приложение", web_app=WebAppInfo(url=_WEBAPP_URL))]]
+        )
     await update.message.reply_text(
         "🏊 *ТРЕНЕР ПО ПЛАВАНИЮ — КОМАНДЫ*\n\n"
         "/newworkout — получить тренировку\n"
@@ -1104,6 +1113,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/start — изменить профиль полностью\n"
         "/cancel — отменить текущий диалог",
         parse_mode="Markdown",
+        reply_markup=keyboard,
     )
 
 
@@ -1142,7 +1152,9 @@ async def _post_init(app: Application) -> None:
 
 # ── Сборка приложения ──────────────────────────────────────────────────────
 
-def build_application(token: str) -> Application:
+def build_application(token: str, webapp_url: str = "") -> Application:
+    global _WEBAPP_URL
+    _WEBAPP_URL = webapp_url
     init_db()
     app = Application.builder().token(token).post_init(_post_init).build()
 

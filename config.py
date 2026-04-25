@@ -6,6 +6,7 @@ from dataclasses import dataclass
 class Config:
     telegram_token: str
     openai_api_key: str
+    webapp_url: str = ""
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -17,4 +18,6 @@ class Config:
         if not api_key:
             raise RuntimeError("Не задана переменная окружения OPENAI_API_KEY")
 
-        return cls(telegram_token=token, openai_api_key=api_key)
+        webapp_url = os.environ.get("WEBAPP_URL", "").strip()
+
+        return cls(telegram_token=token, openai_api_key=api_key, webapp_url=webapp_url)

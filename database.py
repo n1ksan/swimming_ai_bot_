@@ -63,6 +63,8 @@ def _migrate_db():
         ("created_at", "TEXT"),
         ("last_reminder_sent", "TEXT"),
         ("usual_distance", "TEXT"),
+        ("training_days", "TEXT DEFAULT '[]'"),
+        ("equipment", "TEXT DEFAULT '[]'"),
     ]:
         _add_column(c, "users", col, col_type)
 
@@ -71,6 +73,7 @@ def _migrate_db():
         ("completion_rate", "TEXT DEFAULT 'full'"),
         ("actual_distance", "INTEGER"),
         ("saved", "INTEGER DEFAULT 0"),
+        ("used_exercises", "TEXT DEFAULT '[]'"),
     ]:
         _add_column(c, "workouts", col, col_type)
 
@@ -83,8 +86,8 @@ def save_user_profile(user_id: int, user_data: dict):
     c = conn.cursor()
     c.execute("""
         INSERT INTO users
-            (user_id, level, goal, pool_length, duration, sessions_per_week, strokes, injuries, usual_distance, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (user_id, level, goal, pool_length, duration, sessions_per_week, strokes, injuries, usual_distance, training_days, equipment, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(user_id) DO UPDATE SET
             level=excluded.level,
             goal=excluded.goal,
@@ -94,6 +97,8 @@ def save_user_profile(user_id: int, user_data: dict):
             strokes=excluded.strokes,
             injuries=excluded.injuries,
             usual_distance=excluded.usual_distance,
+            training_days=excluded.training_days,
+            equipment=excluded.equipment,
             updated_at=excluded.updated_at
     """, (
         user_id,
@@ -105,6 +110,8 @@ def save_user_profile(user_id: int, user_data: dict):
         json.dumps(user_data.get("strokes", [])),
         user_data.get("injuries"),
         user_data.get("usual_distance"),
+        json.dumps(user_data.get("training_days", [])),
+        json.dumps(user_data.get("equipment", [])),
         datetime.now().isoformat(),
     ))
     conn.commit()
@@ -117,7 +124,7 @@ def get_user_profile(user_id: int):
     c.execute(
         """SELECT level, goal, pool_length, duration, sessions_per_week, strokes, injuries,
                   experience, best_100m_time, reminder_days, reminders_enabled, last_reminder_sent,
-                  usual_distance
+                  usual_distance, training_days, equipment
            FROM users WHERE user_id = ?""",
         (user_id,),
     )
@@ -139,6 +146,8 @@ def get_user_profile(user_id: int):
         "reminders_enabled": row[10] or 0,
         "last_reminder_sent": row[11],
         "usual_distance": row[12],
+        "training_days": json.loads(row[13]) if row[13] else [],
+        "equipment": json.loads(row[14]) if row[14] else [],
     }
 
 
@@ -157,7 +166,8 @@ def update_user_field(user_id: int, field: str, value) -> None:
     allowed = {
         "level", "goal", "pool_length", "duration", "sessions_per_week",
         "strokes", "injuries", "experience", "best_100m_time",
-        "reminder_days", "reminders_enabled", "usual_distance",
+        "reminder_days", "reminders_enabled", "usual_distance", "training_days",
+        "equipment",
     }
     if field not in allowed:
         raise ValueError(f"Поле {field} не разрешено")
@@ -168,7 +178,7 @@ def update_user_field(user_id: int, field: str, value) -> None:
     conn.close()
 
 
-def save_workout(user_id: int, workout_text: str, workout_type: str = None, distance_meters: int = None) -> int:
+def save_workout(user_id: int, workout_text: str, workout_type: str = None, distance_meters: int = None, used_exercises: list = None) -> int:
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
@@ -179,8 +189,8 @@ def save_workout(user_id: int, workout_text: str, workout_type: str = None, dist
     )
 
     c.execute(
-        "INSERT INTO workouts (user_id, workout_text, workout_type, distance_meters, created_at) VALUES (?, ?, ?, ?, ?)",
-        (user_id, workout_text, workout_type, distance_meters, datetime.now().isoformat()),
+        "INSERT INTO workouts (user_id, workout_text, workout_type, distance_meters, used_exercises, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (user_id, workout_text, workout_type, distance_meters, json.dumps(used_exercises or []), datetime.now().isoformat()),
     )
     workout_id = c.lastrowid
 
@@ -214,6 +224,16 @@ def get_workout_by_id(workout_id: int):
         "workout_type": row[3] or "выносливость",
         "date": row[4][:10] if row[4] else "—",
     }
+
+
+def delete_workout(workout_id: int, user_id: int) -> bool:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("DELETE FROM workouts WHERE id = ? AND user_id = ?", (workout_id, user_id))
+    deleted = c.rowcount > 0
+    conn.commit()
+    conn.close()
+    return deleted
 
 
 def mark_workout_saved(workout_id: int) -> None:
@@ -271,7 +291,7 @@ def get_workout_history(user_id: int, limit: int = 20) -> list:
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        """SELECT id, workout_text, completed, perceived_effort, feedback, distance_meters, created_at, workout_type
+        """SELECT id, workout_text, completed, perceived_effort, feedback, distance_meters, created_at, workout_type, used_exercises
            FROM workouts WHERE user_id = ? ORDER BY created_at DESC LIMIT ?""",
         (user_id, limit),
     )
@@ -287,6 +307,7 @@ def get_workout_history(user_id: int, limit: int = 20) -> list:
             "distance_meters": row[5],
             "date": row[6][:10] if row[6] else "—",
             "workout_type": row[7] or "выносливость",
+            "used_exercises": json.loads(row[8]) if row[8] else [],
         }
         for row in rows
     ]
