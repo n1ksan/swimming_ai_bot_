@@ -600,7 +600,7 @@ function showObStep(idx) {
   let content = '';
   if (step.type === 'single') {
     content = step.opts.map(o =>
-      `<button class="ob-option-btn" onclick="obSelect(${JSON.stringify(o.v)})">${o.l}</button>`
+      `<button class="ob-option-btn" onclick="obSelect('${o.v}')">${o.l}</button>`
     ).join('');
   } else if (step.type === 'multi') {
     _obMulti = [];
