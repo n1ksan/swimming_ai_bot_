@@ -747,7 +747,7 @@ function renderTodaySection(w) {
         </div>
         <div id="choose-confirm-${w.id}" style="display:none;grid-column:1/-1">
           <p style="font-size:13px;color:var(--text-muted);text-align:center;margin:0 0 8px">Как только завершите тренировку — нажмите «Выполнено»</p>
-          <button class="btn btn-primary btn-full" onclick="openLogSheet(${w.id}, afterLogHome, ${w.distance_meters || null})">✅ Выполнено</button>
+          <button class="btn btn-primary btn-full" onclick="openLogSheet(${w.id}, afterLogHome)">✅ Выполнено</button>
         </div>
         <button class="btn btn-secondary btn-full" onclick="confirmRegenerate()">🔄 Другая тренировка</button>
         <button class="btn btn-secondary" onclick="openAdjustSheet(${w.id},'harder')">↑ Сложнее</button>
@@ -1416,7 +1416,7 @@ async function openWorkout(id) {
     if (!w.completed) {
       foot.innerHTML = `
         <div class="i-row" style="margin-bottom:8px">
-          <button class="btn btn-primary" onclick="openLogFromSheet(${id}, ${w.distance_meters || null})">✅ Выполнено</button>
+          <button class="btn btn-primary" onclick="openLogFromSheet(${id})">✅ Выполнено</button>
           <button class="btn btn-secondary" onclick="closeSheet()">Закрыть</button>
         </div>`;
     } else {
@@ -1429,7 +1429,7 @@ async function openWorkout(id) {
   } catch { tg?.showAlert('Не удалось загрузить тренировку'); }
 }
 
-function openLogFromSheet(id, distance) {
+function openLogFromSheet(id) {
   closeSheet();
   setTimeout(() => {
     openLogSheet(id, (wId, effort, completion) => {
@@ -1441,7 +1441,7 @@ function openLogFromSheet(id, distance) {
         C.todayWorkout.completion_rate = completion;
         if (activeTab === 'home') renderTodaySection(C.todayWorkout);
       }
-    }, distance);
+    });
   }, 350);
 }
 
@@ -1455,10 +1455,10 @@ function closeSheet() {
 }
 
 // ── LOG SHEET ─────────────────────────────────────────────────────────────────
-let _logId = null, _logEffort = null, _logCompletion = 'full', _logCb = null, _logDist = null;
+let _logId = null, _logEffort = null, _logCompletion = 'full', _logCb = null;
 
-function openLogSheet(id, callback, distance) {
-  _logId = id; _logEffort = null; _logCompletion = 'full'; _logCb = callback || null; _logDist = distance ?? null;
+function openLogSheet(id, callback) {
+  _logId = id; _logEffort = null; _logCompletion = 'full'; _logCb = callback || null;
 
   document.getElementById('log-body').innerHTML = `
     <p class="log-label">Нагрузка</p>
@@ -1502,7 +1502,6 @@ async function submitLog() {
     await api('/api/workout/log', { method: 'POST', body: JSON.stringify({
       workout_id: _logId, perceived_effort: _logEffort,
       feedback: comment, completion_rate: _logCompletion,
-      distance_meters: _logDist,
     })});
     closeLogSheet();
     if (_logCb) _logCb(_logId, _logEffort, _logCompletion, comment);
