@@ -241,50 +241,23 @@ def _finalize_log(
 # ── /start ─────────────────────────────────────────────────────────────────
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    user_id = update.effective_user.id
-    profile = get_user_profile(user_id)
+    user = update.effective_user
+    first_name = user.first_name or "пловец"
 
-    if profile:
-        context.user_data.update(profile)
-        level_label = LEVEL_LABELS.get(profile["level"], profile["level"])
-        goal_label = GOAL_LABELS.get(profile["goal"], profile["goal"])
-        keyboard = [
-            [InlineKeyboardButton("⚡ Использовать сохранённый профиль", callback_data="use_profile")],
-            [InlineKeyboardButton("✏️ Изменить профиль", callback_data="change_profile")],
-        ]
-        if _WEBAPP_URL:
-            keyboard.append([InlineKeyboardButton("📊 Открыть приложение", web_app=WebAppInfo(url=_WEBAPP_URL))])
-        await update.message.reply_text(
-            f"👋 С возвращением!\n\n"
-            f"Твой профиль:\n"
-            f"• Уровень: {level_label}\n"
-            f"• Цель: {goal_label}\n"
-            f"• Бассейн: {profile['pool_length']} м\n"
-            f"• Время: {profile['duration']} мин\n\n"
-            f"Сгенерировать тренировку с этим профилем?",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-        )
-        return PROFILE_CHOICE
+    keyboard = []
+    if _WEBAPP_URL:
+        keyboard.append([InlineKeyboardButton("🏊 Открыть приложение", web_app=WebAppInfo(url=_WEBAPP_URL))])
 
-    return await _start_onboarding(update, context)
-
-
-async def _start_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data.clear()
-    return await _show_intro(update, context)
-
-
-async def _show_intro(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    keyboard = [[InlineKeyboardButton("▶️ Начать", callback_data="intro_start")]]
-    await update.effective_message.reply_text(
-        "🏊 *ПЕРСОНАЛЬНЫЙ ТРЕНЕР ПО ПЛАВАНИЮ*\n\n"
-        "Составляю тренировки на основе твоего уровня, цели и истории. "
-        "Каждая тренировка адаптируется — чем больше тренируешься, тем точнее план.\n\n"
-        "Займёт 1 минуту — отвечай на вопросы и сразу получишь тренировку.",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="Markdown",
+    await update.message.reply_text(
+        f"Привет, {first_name}! 👋\n\n"
+        f"Я твой персональный тренер по плаванию. "
+        f"Составляю тренировки под твой уровень и цели, "
+        f"отслеживаю прогресс и адаптирую план.\n\n"
+        f"Нажми кнопку ниже, чтобы начать 👇",
+        reply_markup=InlineKeyboardMarkup(keyboard) if keyboard else None,
     )
-    return INTRO
+    return ConversationHandler.END
+
 
 
 async def _intro_start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
